@@ -216,6 +216,7 @@ export default function App() {
   const sourceSyncedFromMapRef = useRef(false)
   const [source, setSource] = useState(starterOutline)
   const [sourceMode, setSourceMode] = useState('raw')
+  const [autoUpdateMap, setAutoUpdateMap] = useState(true)
   const [outline, setOutline] = useState(starterOutline)
   const [mindData, setMindData] = useState(initialData)
   const [skeletonId, setSkeletonId] = useState(DEFAULT_SKELETON)
@@ -228,12 +229,12 @@ export default function App() {
   const [presetName, setPresetName] = useState('')
   const [presetPrompt, setPresetPrompt] = useState('')
   const [editingPresetId, setEditingPresetId] = useState(null)
-  const [nodePrompt, setNodePrompt] = useState('')
   const [nodeRefineTarget, setNodeRefineTarget] = useState('No node selected')
   const [nodeContextMode, setNodeContextMode] = useState('1')
   const [isNodeBusy, setIsNodeBusy] = useState(false)
   const [nodeRefineMenu, setNodeRefineMenu] = useState(null)
   const [tooltip, setTooltip] = useState(null)
+  const [toast, setToast] = useState(null)
   const [maps, setMaps] = useState([])
   const [activeId, setActiveId] = useState('demo-map')
   const [selectedTopic, setSelectedTopic] = useState('No node selected')
@@ -277,6 +278,7 @@ export default function App() {
       sourceSyncedFromMapRef.current = false
       return
     }
+    if (!autoUpdateMap) return
 
     const timer = window.setTimeout(() => {
       const current = normalizeMindData(mindRef.current?.getData() || mindData)
@@ -289,7 +291,7 @@ export default function App() {
     }, 450)
 
     return () => window.clearTimeout(timer)
-  }, [source])
+  }, [source, autoUpdateMap])
 
   useEffect(() => {
     if (!bootstrappedRef.current) return
@@ -384,7 +386,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [nodePrompt, apiProvider, apiKey, apiModel, nodeContextMode, mindData, skeletonId, defaultNodePresetId, promptPresets])
+  }, [apiProvider, apiKey, apiModel, nodeContextMode, mindData, skeletonId, defaultNodePresetId, promptPresets])
 
   useEffect(() => {
     const handleMouseOver = (event) => {
@@ -410,6 +412,12 @@ export default function App() {
       window.removeEventListener('mouseout', handleMouseOut)
     }
   }, [])
+
+  useEffect(() => {
+    if (!toast || toast.persistent) return
+    const timer = window.setTimeout(() => setToast(null), 3600)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   useEffect(() => {
     if (!mapRef.current || mindRef.current) return
@@ -592,6 +600,10 @@ export default function App() {
     setStatus('Centered')
   }
 
+  function showToast(type, title, message, persistent = false) {
+    setToast({ type, title, message, persistent })
+  }
+
   function setMapZoom(nextScale) {
     const mind = mindRef.current
     if (!mind) return
@@ -701,7 +713,8 @@ export default function App() {
 
   async function refineWithGroq() {
     setIsBusy(true)
-    setStatus('Asking Groq...')
+    setStatus(`Asking ${apiProvider}...`)
+    showToast('progress', 'Refining full map', `Using ${apiProvider}`, true)
     try {
       const selectedPreset =
         promptPresets.find((preset) => preset.id === fullPromptPresetId) ||
@@ -725,34 +738,42 @@ export default function App() {
       )
       setOutline(refinedOutline)
       setSource(refinedOutline)
-      refreshMind(next, 'Refined with Groq')
+      refreshMind(next, `Refined with ${apiProvider}`)
+      showToast('success', 'Full map refined', activeTitle)
     } catch (error) {
-      setStatus(error.message)
+      const message = error.message || 'Full map refine failed'
+      setStatus(message)
+      showToast('error', 'Refine failed', message, true)
     } finally {
       setIsBusy(false)
     }
   }
 
-  async function refineSelectedNode(prompt = nodePrompt, targetOverrideId = null) {
+  async function refineSelectedNode(prompt, targetOverrideId = null) {
     const targetId =
       targetOverrideId ||
       nodeRefineTargetIdRef.current ||
       getSelectedNodeId(mindRef.current, selectedNodeIdRef.current)
 
     if (!targetId) {
-      setStatus('Right-click or select a node before node AI refine')
+      const message = 'Right-click or select a node before node AI refine'
+      setStatus(message)
+      showToast('error', 'No node selected', message)
       return
     }
 
     const current = normalizeMindData(mindRef.current?.getData() || mindData)
     const target = findNodeById(current.nodeData, targetId)
     if (!target) {
-      setStatus('Node refine target was not found')
+      const message = 'Node refine target was not found'
+      setStatus(message)
+      showToast('error', 'Refine failed', message)
       return
     }
 
     setIsNodeBusy(true)
     setStatus(`Refining node: ${target.topic}`)
+    showToast('progress', 'Refining sub-branch', `${target.topic} with ${apiProvider}`, true)
     try {
       const refinedOutline = await refineNodeOutline({
         nodeOutline: mindDataToOutline({ nodeData: target }),
@@ -776,8 +797,11 @@ export default function App() {
       refreshMind(next, `AI refined node: ${target.topic}`)
       setNodeRefineTarget(refinedNode.topic || target.topic)
       nodeRefineTargetIdRef.current = targetId
+      showToast('success', 'Refine complete', refinedNode.topic || target.topic)
     } catch (error) {
-      setStatus(error.message)
+      const message = error.message || 'Node refine failed'
+      setStatus(message)
+      showToast('error', 'Refine failed', message, true)
     } finally {
       setIsNodeBusy(false)
     }
@@ -788,7 +812,6 @@ export default function App() {
       promptPresetsRef.current.find((preset) => preset.id === defaultNodePresetId) ||
       promptPresetsRef.current[0] ||
       defaultPromptPresets[0]
-    setNodePrompt(defaultPreset.prompt)
     refineSelectedNode(defaultPreset.prompt, targetOverrideId)
   }
 
@@ -977,13 +1000,11 @@ export default function App() {
   }
 
   function usePreset(preset) {
-    setNodePrompt(preset.prompt)
     refineSelectedNode(preset.prompt)
   }
 
   function usePresetFromMenu(preset, nodeId) {
     setNodeRefineMenu(null)
-    setNodePrompt(preset.prompt)
     refineSelectedNode(preset.prompt, nodeId)
   }
 
@@ -1158,10 +1179,18 @@ export default function App() {
               </option>
             ))}
           </select>
+          <label className="checkbox-row">
+            <input
+              checked={autoUpdateMap}
+              onChange={(event) => setAutoUpdateMap(event.target.checked)}
+              type="checkbox"
+            />
+            <span>Auto update map from raw text</span>
+          </label>
           <div className="full-map-actions">
-            <button type="button" onClick={generateFromOutline} data-tooltip="Generate the full mind map from the current text">
+            <button type="button" onClick={generateFromOutline} data-tooltip="Update the mind map from the current raw text">
               <Wand2 size={16} />
-              Generate full map
+              Update map
             </button>
             <button
               type="button"
@@ -1189,13 +1218,6 @@ export default function App() {
             <span>Target</span>
             <strong>{nodeRefineTarget}</strong>
           </div>
-          <textarea
-            className="compact-textarea"
-            value={nodePrompt}
-            onChange={(event) => setNodePrompt(event.target.value)}
-            placeholder="Quick prompt for the selected node..."
-            spellCheck="false"
-          />
           <div className="node-ai-actions">
             <label className="context-depth-row">
               <span>Context</span>
@@ -1211,15 +1233,6 @@ export default function App() {
                 <option value="full">Full map</option>
               </select>
             </label>
-            <button
-              type="button"
-              onClick={() => refineSelectedNode()}
-              disabled={isNodeBusy}
-              data-tooltip="Refine only the selected node using the quick prompt above"
-            >
-              <Sparkles size={16} />
-              {isNodeBusy ? 'Refining...' : 'Refine Target'}
-            </button>
           </div>
 
           <input
@@ -1261,6 +1274,7 @@ export default function App() {
                 <button
                   className="preset-name-button"
                   type="button"
+                  disabled={isNodeBusy}
                   data-tooltip={`Run preset on selected node: ${preset.name}`}
                   onClick={() => usePreset(preset)}
                 >
@@ -1523,6 +1537,17 @@ export default function App() {
               Got it
             </button>
           </div>
+        </div>
+      )}
+      {toast && (
+        <div className={`refine-toast refine-toast-${toast.type}`} role="alert">
+          <div>
+            <strong>{toast.title}</strong>
+            <p>{toast.message}</p>
+          </div>
+          <button type="button" onClick={() => setToast(null)}>
+            OK
+          </button>
         </div>
       )}
     </main>
