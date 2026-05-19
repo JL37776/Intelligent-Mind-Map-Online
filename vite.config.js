@@ -12,11 +12,20 @@ function appVersion() {
   }
 }
 
+function appUpdateNotes() {
+  try {
+    return execSync('git log -5 --pretty=format:%s').toString().trim().split(/\r?\n/)
+  } catch {
+    return ['Local build']
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
   base: '/Intelligent-Mind-Map-Online/',
   define: {
     __APP_VERSION__: JSON.stringify(appVersion()),
+    __APP_UPDATE_NOTES__: JSON.stringify(appUpdateNotes()),
   },
   build: {
     outDir: 'docs',

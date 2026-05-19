@@ -56,6 +56,7 @@ import {
 
 const DEFAULT_SKELETON = 'bright'
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'
+const APP_UPDATE_NOTES = Array.isArray(__APP_UPDATE_NOTES__) ? __APP_UPDATE_NOTES__ : []
 const SEEN_VERSION_KEY = 'intelligent-ai-mind-map-seen-version'
 const providerDefaults = {
   groq: 'llama-3.3-70b-versatile',
@@ -1635,7 +1636,12 @@ export default function App() {
             <Bell size={18} />
             <div>
               <strong>Updated</strong>
-              <p>New version loaded: {APP_VERSION}</p>
+              <p>Version: {APP_VERSION}</p>
+              <ul>
+                {APP_UPDATE_NOTES.slice(0, 5).map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
             </div>
             <button type="button" onClick={dismissUpdateNotice}>
               Got it

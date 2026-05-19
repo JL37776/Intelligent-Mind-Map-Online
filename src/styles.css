@@ -207,7 +207,7 @@ button:disabled {
 }
 
 .update-notice-panel {
-  align-items: center;
+  align-items: start;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -225,6 +225,14 @@ button:disabled {
   color: #64748b;
   font-size: 12px;
   margin-top: 2px;
+}
+
+.update-notice-panel ul {
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 8px 0 0;
+  padding-left: 17px;
 }
 
 .refine-toast {
