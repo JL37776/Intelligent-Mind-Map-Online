@@ -12,7 +12,7 @@ export const skeletonPresets = {
     leaf: { background: '#ffffff', color: '#4b5563', fontSize: '15' },
     important: { background: '#fff1f2', color: '#be123c', fontSize: '18' },
     plain: { background: '#ffffff', color: '#1f2937', fontSize: '16' },
-    muted: { background: '#f3f4f6', color: '#6b7280', fontSize: '14' },
+    muted: { background: '#e5e7eb', color: '#9ca3af', fontSize: '13', opacity: '0.56' },
   },
   mono: {
     label: 'Mono',
@@ -21,7 +21,7 @@ export const skeletonPresets = {
     leaf: { background: '#111827', color: '#dbeafe', fontSize: '15' },
     important: { background: '#f59e0b', color: '#111827', fontSize: '18' },
     plain: { background: '#1e293b', color: '#e0f2fe', fontSize: '16' },
-    muted: { background: '#312e81', color: '#c4b5fd', fontSize: '14' },
+    muted: { background: '#111827', color: '#64748b', fontSize: '13', opacity: '0.52' },
   },
   colorful: {
     label: 'Colorful',
@@ -30,7 +30,7 @@ export const skeletonPresets = {
     leaf: { background: '#f0fdfa', color: '#115e59', fontSize: '15' },
     important: { background: '#fef3c7', color: '#92400e', fontSize: '18' },
     plain: { background: '#eff6ff', color: '#1d4ed8', fontSize: '16' },
-    muted: { background: '#f3e8ff', color: '#7e22ce', fontSize: '14' },
+    muted: { background: '#f1f5f9', color: '#94a3b8', fontSize: '13', opacity: '0.56' },
   },
 }
 

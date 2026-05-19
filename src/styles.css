@@ -264,6 +264,7 @@ button:disabled {
 .app-theme-mono .field-label,
 .app-theme-mono .section-heading,
 .app-theme-mono .checkbox-row,
+.app-theme-mono .context-depth-row,
 .app-theme-mono .format-hint {
   color: #93c5fd;
 }
@@ -574,9 +575,50 @@ select {
 
 .section-heading {
   align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
   color: #334155;
   display: flex;
+  height: 30px;
   justify-content: space-between;
+  padding: 0 2px;
+  text-align: left;
+  width: 100%;
+}
+
+.section-heading:hover {
+  background: #eef5ff;
+  border-color: transparent;
+}
+
+.section-heading span {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.section-heading svg:last-child {
+  transition: transform 0.16s ease;
+}
+
+.panel-collapsed {
+  gap: 0;
+  min-height: 0;
+}
+
+.panel-collapsed .panel-body {
+  display: none;
+}
+
+.panel-collapsed .section-heading svg:last-child {
+  transform: rotate(-90deg);
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .target-pill {
@@ -606,6 +648,24 @@ select {
   display: flex;
   font-size: 12px;
   gap: 8px;
+}
+
+.context-depth-row {
+  align-items: center;
+  color: #334155;
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.context-depth-row span {
+  font-weight: 700;
+}
+
+.context-depth-row select {
+  min-width: 0;
+  width: 100%;
 }
 
 .checkbox-row input {

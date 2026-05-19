@@ -5,6 +5,7 @@ import { toPng } from 'html-to-image'
 import {
   Download,
   Bell,
+  ChevronDown,
   FileDown,
   FileUp,
   HardDrive,
@@ -122,6 +123,28 @@ function findNodeById(node, id) {
   return null
 }
 
+function findNodePathById(node, id, path = []) {
+  if (!node || !id) return null
+  const nextPath = [...path, node]
+  if (node.id === id) return nextPath
+  for (const child of node.children || []) {
+    const found = findNodePathById(child, id, nextPath)
+    if (found) return found
+  }
+  return null
+}
+
+function nodeContextOutline(data, targetId, contextMode) {
+  if (contextMode === 'full') return mindDataToOutline(stripImagesForAI(data))
+  const depth = Number(contextMode)
+  if (!Number.isFinite(depth) || depth <= 0) return ''
+
+  const path = findNodePathById(data.nodeData, targetId)
+  if (!path) return ''
+  const contextRoot = path[Math.max(0, path.length - 1 - depth)]
+  return mindDataToOutline(stripImagesForAI({ nodeData: contextRoot }))
+}
+
 function replaceNodeById(node, id, replacement) {
   if (!node || !id) return false
   if (node.id === id) {
@@ -202,7 +225,7 @@ export default function App() {
   const [editingPresetId, setEditingPresetId] = useState(null)
   const [nodePrompt, setNodePrompt] = useState('')
   const [nodeRefineTarget, setNodeRefineTarget] = useState('No node selected')
-  const [sendFullContext, setSendFullContext] = useState(false)
+  const [nodeContextMode, setNodeContextMode] = useState('1')
   const [isNodeBusy, setIsNodeBusy] = useState(false)
   const [nodeRefineMenu, setNodeRefineMenu] = useState(null)
   const [tooltip, setTooltip] = useState(null)
@@ -215,6 +238,7 @@ export default function App() {
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const [showUpdateNotice, setShowUpdateNotice] = useState(false)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [collapsedPanels, setCollapsedPanels] = useState({})
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
   })
@@ -355,7 +379,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [nodePrompt, apiKey, apiModel, sendFullContext, mindData, skeletonId, defaultNodePresetId, promptPresets])
+  }, [nodePrompt, apiKey, apiModel, nodeContextMode, mindData, skeletonId, defaultNodePresetId, promptPresets])
 
   useEffect(() => {
     const handleMouseOver = (event) => {
@@ -590,6 +614,17 @@ export default function App() {
     setShowUpdateNotice(false)
   }
 
+  function togglePanel(panelId) {
+    setCollapsedPanels((current) => ({
+      ...current,
+      [panelId]: !current[panelId],
+    }))
+  }
+
+  function panelClass(baseClass, panelId) {
+    return `${baseClass} ${collapsedPanels[panelId] ? 'panel-collapsed' : ''}`
+  }
+
   async function refreshMapList() {
     const nextMaps = await listMaps()
     setMaps(nextMaps)
@@ -710,7 +745,7 @@ export default function App() {
     try {
       const refinedOutline = await refineNodeOutline({
         nodeOutline: mindDataToOutline({ nodeData: target }),
-        fullOutline: sendFullContext ? mindDataToOutline(stripImagesForAI(current)) : '',
+        fullOutline: nodeContextOutline(current, targetId, nodeContextMode),
         instruction: prompt,
         apiKey,
         model: apiModel,
@@ -993,12 +1028,15 @@ export default function App() {
           </button>
         </div>
 
-        <section className="saved-panel">
-          <div className="section-heading">
+        <section className={panelClass('saved-panel', 'recent')}>
+          <button className="section-heading" type="button" onClick={() => togglePanel('recent')}>
             <h2>Recent projects</h2>
-            <HardDrive size={15} />
-          </div>
-          <div className="map-list">
+            <span>
+              <HardDrive size={15} />
+              <ChevronDown size={15} />
+            </span>
+          </button>
+          <div className="map-list panel-body">
             {maps.length === 0 ? (
               <p className="empty-state">No recent projects yet.</p>
             ) : (
@@ -1028,12 +1066,15 @@ export default function App() {
           </div>
         </section>
 
-        <section className="settings-panel project-panel">
-          <div className="section-heading">
+        <section className={panelClass('settings-panel project-panel', 'project')}>
+          <button className="section-heading" type="button" onClick={() => togglePanel('project')}>
             <h2>Project</h2>
-            <Save size={15} />
-          </div>
-          <div className="project-actions">
+            <span>
+              <Save size={15} />
+              <ChevronDown size={15} />
+            </span>
+          </button>
+          <div className="project-actions panel-body">
             <button type="button" onClick={saveCurrentMap} data-tooltip="Save the current project locally">
               <Save size={16} />
               Save
@@ -1049,11 +1090,15 @@ export default function App() {
           </div>
         </section>
 
-        <section className="settings-panel full-map-panel">
-          <div className="section-heading">
+        <section className={panelClass('settings-panel full-map-panel', 'fullMap')}>
+          <button className="section-heading" type="button" onClick={() => togglePanel('fullMap')}>
             <h2>Full map</h2>
-            <Wand2 size={15} />
-          </div>
+            <span>
+              <Wand2 size={15} />
+              <ChevronDown size={15} />
+            </span>
+          </button>
+          <div className="panel-body panel-stack">
           <div className="segmented-tabs">
             <button
               className={sourceMode === 'raw' ? 'active' : ''}
@@ -1116,13 +1161,18 @@ export default function App() {
               {isBusy ? 'Refining...' : 'Prompt refine full map'}
             </button>
           </div>
+          </div>
         </section>
 
-        <section className="settings-panel node-ai-panel">
-          <div className="section-heading">
+        <section className={panelClass('settings-panel node-ai-panel', 'nodeAi')}>
+          <button className="section-heading" type="button" onClick={() => togglePanel('nodeAi')}>
             <h2>Node AI refine</h2>
-            <Sparkles size={15} />
-          </div>
+            <span>
+              <Sparkles size={15} />
+              <ChevronDown size={15} />
+            </span>
+          </button>
+          <div className="panel-body panel-stack">
           <div className="target-pill">
             <span>Target</span>
             <strong>{nodeRefineTarget}</strong>
@@ -1135,13 +1185,19 @@ export default function App() {
             spellCheck="false"
           />
           <div className="node-ai-actions">
-            <label className="checkbox-row">
-              <input
-                checked={sendFullContext}
-                onChange={(event) => setSendFullContext(event.target.checked)}
-                type="checkbox"
-              />
-              <span>Send full map context</span>
+            <label className="context-depth-row">
+              <span>Context</span>
+              <select
+                aria-label="Node refine context depth"
+                value={nodeContextMode}
+                onChange={(event) => setNodeContextMode(event.target.value)}
+              >
+                <option value="0">Selected only</option>
+                <option value="1">Parent level</option>
+                <option value="2">2 levels up</option>
+                <option value="3">3 levels up</option>
+                <option value="full">Full map</option>
+              </select>
             </label>
             <button
               type="button"
@@ -1216,6 +1272,7 @@ export default function App() {
                 </div>
               </div>
             ))}
+          </div>
           </div>
         </section>
 

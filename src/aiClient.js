@@ -99,7 +99,7 @@ export async function refineNodeOutline({
 
   return refineOutline({
     source: fullOutline
-      ? `Full map context for reference only. Do not rewrite it:\n${fullOutline}`
+      ? `Context outline for reference only. Do not rewrite unrelated nodes:\n${fullOutline}`
       : '',
     instruction: scopedInstruction,
     currentOutline: nodeOutline,
