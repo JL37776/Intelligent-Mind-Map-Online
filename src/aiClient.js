@@ -145,9 +145,12 @@ export async function refineNodeOutline({
 }) {
   const scopedInstruction = [
     'You are refining exactly one selected mind map node branch.',
+    'The first line of Current outline is the selected node root.',
+    'Copy that selected root topic exactly. Do not rename it.',
+    'Only add, remove, merge, or rewrite children under that same root.',
     'Only output the Markdown outline for that selected node branch.',
     'Do not output the full map.',
-    'Keep the first heading as the selected node root.',
+    'Never output placeholder labels such as "New Node", "Keyword", "关键词", "结构", "机构", "这是一个xxx", or "xxx" unless they already exist in the current outline.',
     instruction || 'Improve this branch while keeping it clear and editable.',
   ].join('\n')
 

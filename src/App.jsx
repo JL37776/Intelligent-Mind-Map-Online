@@ -610,6 +610,26 @@ export default function App() {
     setStatus(message)
   }
 
+  function restoreNodeSelection(nodeId) {
+    window.requestAnimationFrame(() => {
+      const mind = mindRef.current
+      if (!mind || !nodeId) return
+
+      try {
+        const target = mind.findEle(nodeId)
+        mind.selectNode(target)
+        selectedNodeIdRef.current = nodeId
+        nodeRefineTargetIdRef.current = nodeId
+        const topic = target?.nodeObj?.topic || 'Selected node'
+        setNodeRefineTarget(topic)
+        setSelectedTopic(topic)
+      } catch {
+        selectedNodeIdRef.current = nodeId
+        nodeRefineTargetIdRef.current = nodeId
+      }
+    })
+  }
+
   function centerMap() {
     mindRef.current?.toCenter()
     setStatus('Centered')
@@ -800,6 +820,7 @@ export default function App() {
       })
       const refinedNode = outlineToMindData(refinedOutline).nodeData
       refinedNode.id = target.id
+      refinedNode.topic = target.topic
       mergeImagesByTopicPath(refinedNode, target)
       refinedNode.metadata = {
         ...(target.metadata || {}),
@@ -809,10 +830,11 @@ export default function App() {
       }
       const next = structuredClone(current)
       replaceNodeById(next.nodeData, targetId, refinedNode)
-      refreshMind(next, `AI refined node: ${target.topic}`)
-      setNodeRefineTarget(refinedNode.topic || target.topic)
+      refreshMind(next, `AI refined node: ${target.topic}`, skeletonId, { center: false })
+      restoreNodeSelection(targetId)
+      setNodeRefineTarget(target.topic)
       nodeRefineTargetIdRef.current = targetId
-      showToast('success', 'Refine complete', refinedNode.topic || target.topic)
+      showToast('success', 'Refine complete', target.topic)
     } catch (error) {
       const message = error.message || 'Node refine failed'
       setStatus(message)

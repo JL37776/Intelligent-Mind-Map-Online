@@ -7,9 +7,14 @@ const defaultPromptPresetKey = 'intelligent-ai-mind-map-default-prompt-preset'
 
 export const defaultPromptPresets = [
   {
+    id: 'explain-node',
+    name: 'Explain',
+    prompt: 'Explain this node by adding 2-4 concise child nodes that clarify meaning, background, or why it matters. Keep the selected node title unchanged.',
+  },
+  {
     id: 'expand-node',
     name: 'Expand',
-    prompt: 'Expand this node with 3-5 useful child nodes. Keep labels short and concrete.',
+    prompt: 'Expand this node with 3-5 useful child nodes. Keep the selected node title unchanged. Keep labels short and concrete.',
   },
   {
     id: 'simplify-node',
@@ -61,7 +66,10 @@ export function loadActiveProjectId() {
 export function loadPromptPresets() {
   try {
     const parsed = JSON.parse(localStorage.getItem(promptPresetsKey) || 'null')
-    return Array.isArray(parsed) && parsed.length ? parsed : defaultPromptPresets
+    if (!Array.isArray(parsed) || !parsed.length) return defaultPromptPresets
+    const existingIds = new Set(parsed.map((preset) => preset.id))
+    const missingDefaults = defaultPromptPresets.filter((preset) => !existingIds.has(preset.id))
+    return [...missingDefaults, ...parsed]
   } catch {
     return defaultPromptPresets
   }
