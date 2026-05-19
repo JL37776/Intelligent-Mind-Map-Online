@@ -425,9 +425,10 @@ export default function App() {
   useEffect(() => {
     const handleKeydown = (event) => {
       const tagName = event.target?.tagName
+      const isSidebarEvent = event.target?.closest?.('.sidebar')
       const isTyping =
         tagName === 'INPUT' || tagName === 'TEXTAREA' || event.target?.isContentEditable
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f' || isTyping) {
+      if (isSidebarEvent || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f' || isTyping) {
         return
       }
 
@@ -476,6 +477,23 @@ export default function App() {
     const timer = window.setTimeout(() => setTooltip(null), 2400)
     return () => window.clearTimeout(timer)
   }, [tooltip])
+
+  useEffect(() => {
+    const blockSidebarMapEvents = (event) => {
+      if (!event.target?.closest?.('.sidebar')) return
+      event.stopPropagation()
+    }
+
+    document.addEventListener('keydown', blockSidebarMapEvents, true)
+    document.addEventListener('keyup', blockSidebarMapEvents, true)
+    document.addEventListener('keypress', blockSidebarMapEvents, true)
+
+    return () => {
+      document.removeEventListener('keydown', blockSidebarMapEvents, true)
+      document.removeEventListener('keyup', blockSidebarMapEvents, true)
+      document.removeEventListener('keypress', blockSidebarMapEvents, true)
+    }
+  }, [])
 
   useEffect(() => {
     if (!toast || toast.persistent) return
@@ -1656,7 +1674,10 @@ export default function App() {
               <p>Version: {APP_VERSION}</p>
               <ul>
                 {APP_UPDATE_NOTES.slice(0, 5).map((note) => (
-                  <li key={note}>{note}</li>
+                  <li key={`${note.time}-${note.message}`}>
+                    <time>{note.time}</time>
+                    <span>{note.message}</span>
+                  </li>
                 ))}
               </ul>
             </div>

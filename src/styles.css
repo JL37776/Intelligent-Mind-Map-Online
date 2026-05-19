@@ -232,7 +232,18 @@ button:disabled {
   font-size: 12px;
   line-height: 1.45;
   margin: 8px 0 0;
-  padding-left: 17px;
+  padding-left: 0;
+}
+
+.update-notice-panel li {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+
+.update-notice-panel time {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
 }
 
 .refine-toast {

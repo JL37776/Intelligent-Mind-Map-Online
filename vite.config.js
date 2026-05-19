@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 
 function appVersion() {
   try {
@@ -14,9 +14,21 @@ function appVersion() {
 
 function appUpdateNotes() {
   try {
-    return execSync('git log -5 --pretty=format:%s').toString().trim().split(/\r?\n/)
+    return execFileSync('git', [
+      'log',
+      '-5',
+      '--date=format:%Y-%m-%d %H:%M',
+      '--pretty=format:%cd|%s',
+    ])
+      .toString()
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => {
+        const [time, ...messageParts] = line.split('|')
+        return { time, message: messageParts.join('|') }
+      })
   } catch {
-    return ['Local build']
+    return [{ time: new Date().toISOString(), message: 'Local build' }]
   }
 }
 
