@@ -396,7 +396,10 @@ export default function App() {
   })
 
   useEffect(() => {
-    const closeMenu = () => setNodeRefineMenu(null)
+    const closeMenu = () => {
+      setNodeRefineMenu(null)
+      setTooltip(null)
+    }
     window.addEventListener('click', closeMenu)
     window.addEventListener('scroll', closeMenu, true)
     return () => {
@@ -451,17 +454,28 @@ export default function App() {
     }
 
     const handleMouseOut = (event) => {
-      if (!event.target?.closest?.('[data-tooltip]')) return
+      const trigger = event.target?.closest?.('[data-tooltip]')
+      if (!trigger || trigger.contains(event.relatedTarget)) return
       setTooltip(null)
     }
 
+    const handlePointerDown = () => setTooltip(null)
+
     window.addEventListener('mouseover', handleMouseOver)
     window.addEventListener('mouseout', handleMouseOut)
+    window.addEventListener('pointerdown', handlePointerDown, true)
     return () => {
       window.removeEventListener('mouseover', handleMouseOver)
       window.removeEventListener('mouseout', handleMouseOut)
+      window.removeEventListener('pointerdown', handlePointerDown, true)
     }
   }, [])
+
+  useEffect(() => {
+    if (!tooltip) return
+    const timer = window.setTimeout(() => setTooltip(null), 2400)
+    return () => window.clearTimeout(timer)
+  }, [tooltip])
 
   useEffect(() => {
     if (!toast || toast.persistent) return
@@ -597,6 +611,7 @@ export default function App() {
   }
 
   async function runNodeMenuAction(action, nodeId) {
+    setTooltip(null)
     const mind = mindRef.current
     const target = mind?.findEle?.(nodeId)
     if (!mind || !target) return
@@ -824,6 +839,7 @@ export default function App() {
   }
 
   async function refineSelectedNode(prompt, targetOverrideId = null) {
+    setTooltip(null)
     const targetId =
       targetOverrideId ||
       nodeRefineTargetIdRef.current ||
@@ -1084,6 +1100,7 @@ export default function App() {
 
   function usePresetFromMenu(preset, nodeId) {
     setNodeRefineMenu(null)
+    setTooltip(null)
     refineSelectedNode(preset.prompt, nodeId)
   }
 
