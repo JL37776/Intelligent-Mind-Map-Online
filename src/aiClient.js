@@ -1,23 +1,21 @@
-const systemPrompt = `You are a mind map editing assistant.
-Only output a Markdown outline. Do not explain. Do not wrap the answer in a code block.
-Required format:
-# Root topic [!important]
-> Summary: Optional one-line node summary.
-## Main branch
-### Sub branch [!plain]
-- Detail node [!muted]
-- [Link] URL
-- [ ] task
-- [Image] visual note
+const systemPrompt = `Return ONLY a Markdown mind-map outline.
+No prose. No code fence. No <think>. No reasoning.
+Use only: #, ##, ###, nested "- ", optional "> Summary:", optional [!important]/[!plain]/[!muted].
+Preserve unrelated nodes.
+Do not invent facts, links, images, citations, or tasks.
+No placeholders: New Node, Keyword, 关键词, 结构, 机构, Example, xxx.`
 
-Rules:
-1. Heading and list nesting represent mind map hierarchy.
-2. Keep every node short, clear, and easy to edit.
-3. Avoid empty structural nodes like "Overview", "Summary", or "Conclusion".
-4. When the user asks for a change, preserve unrelated branches and only revise the relevant part.
-5. Use [!important], [!plain], or [!muted] at the end of a node when emphasis matters.
-6. Put summaries on the line after the node as "> Summary: ...".
-7. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
+export function cleanAIOutline(text) {
+  return String(text || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '')
+    .replace(/<\/?think>/gi, '')
+    .replace(/```(?:md|markdown)?\s*([\s\S]*?)```/gi, '$1')
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(okay|first,|the user|i need|i should|so,|putting it|let'?s|analysis:|final:)/i.test(line))
+    .join('\n')
+    .trim()
+}
 
 function buildUserPrompt({ source, instruction, currentOutline }) {
   return [
@@ -62,7 +60,7 @@ async function requestGroq({ source, instruction, currentOutline, apiKey, model 
     throw new Error(payload.error?.message || 'Groq request failed')
   }
 
-  return payload.choices?.[0]?.message?.content?.trim() || ''
+  return cleanAIOutline(payload.choices?.[0]?.message?.content)
 }
 
 async function requestGemini({ source, instruction, currentOutline, apiKey, model }) {
@@ -96,10 +94,10 @@ async function requestGemini({ source, instruction, currentOutline, apiKey, mode
     throw new Error(payload.error?.message || 'Gemini request failed')
   }
 
-  return payload.candidates?.[0]?.content?.parts
+  return cleanAIOutline(payload.candidates?.[0]?.content?.parts
     ?.map((part) => part.text || '')
     .join('')
-    .trim() || ''
+    .trim() || '')
 }
 
 export async function refineOutline({
@@ -132,7 +130,7 @@ export async function refineOutline({
   })
   const payload = await response.json()
   if (!response.ok) throw new Error(payload.error || 'Refine failed')
-  return payload.outline || ''
+  return cleanAIOutline(payload.outline)
 }
 
 export async function refineNodeOutline({
@@ -144,13 +142,12 @@ export async function refineNodeOutline({
   provider,
 }) {
   const scopedInstruction = [
-    'You are refining exactly one selected mind map node branch.',
-    'The first line of Current outline is the selected node root.',
-    'Copy that selected root topic exactly. Do not rename it.',
-    'Only add, remove, merge, or rewrite children under that same root.',
-    'Only output the Markdown outline for that selected node branch.',
-    'Do not output the full map.',
-    'Never output placeholder labels such as "New Node", "Keyword", "关键词", "结构", "机构", "这是一个xxx", or "xxx" unless they already exist in the current outline.',
+    'Edit ONLY the selected branch.',
+    'First heading = selected root. Copy it EXACTLY.',
+    'Never rename the root.',
+    'Return that root plus its children only.',
+    'User examples are instructions, not content.',
+    'For explain requests: add 1-2 layers of concise factual child nodes.',
     instruction || 'Improve this branch while keeping it clear and editable.',
   ].join('\n')
 

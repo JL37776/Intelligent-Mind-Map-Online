@@ -7,26 +7,22 @@ const port = Number(process.env.PORT || 8787)
 
 app.use(express.json({ limit: '2mb' }))
 
-const systemPrompt = `You are a mind map editing assistant.
-Only output a Markdown outline. Do not explain. Do not wrap the answer in a code block.
-Required format:
-# Root topic [!important]
-> Summary: Optional one-line node summary.
-## Main branch
-### Sub branch [!plain]
-- Detail node [!muted]
-- [Link] URL
-- [ ] task
-- [Image] visual note
+const systemPrompt = `Return ONLY a Markdown mind-map outline.
+No prose. No code fence. No <think>. No reasoning.
+Use only: #, ##, ###, nested "- ", optional "> Summary:", optional [!important]/[!plain]/[!muted].
+Preserve unrelated nodes.
+Do not invent facts, links, images, citations, or tasks.
+No placeholders: New Node, Keyword, 关键词, 结构, 机构, Example, xxx.`
 
-Rules:
-1. Heading and list nesting represent mind map hierarchy.
-2. Keep every node short, clear, and easy to edit.
-3. Avoid empty structural nodes like "Overview", "Summary", or "Conclusion".
-4. When the user asks for a change, preserve unrelated branches and only revise the relevant part.
-5. Use [!important], [!plain], or [!muted] at the end of a node when emphasis matters.
-6. Put summaries on the line after the node as "> Summary: ...".
-7. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
+function cleanAIOutline(text) {
+  return String(text || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/```(?:md|markdown)?\s*([\s\S]*?)```/gi, '$1')
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(okay|first,|the user|i need|i should|so,|putting it|let'?s|analysis:|final:)/i.test(line))
+    .join('\n')
+    .trim()
+}
 
 function buildUserPrompt({ source, instruction, currentOutline }) {
   return [
@@ -49,7 +45,7 @@ async function requestGroq({ apiKey, model, userPrompt }) {
     ],
   })
 
-  return completion.choices?.[0]?.message?.content?.trim() || ''
+  return cleanAIOutline(completion.choices?.[0]?.message?.content)
 }
 
 async function requestGemini({ apiKey, model, userPrompt }) {
@@ -83,10 +79,10 @@ async function requestGemini({ apiKey, model, userPrompt }) {
     throw new Error(payload.error?.message || 'Gemini request failed.')
   }
 
-  return payload.candidates?.[0]?.content?.parts
+  return cleanAIOutline(payload.candidates?.[0]?.content?.parts
     ?.map((part) => part.text || '')
     .join('')
-    .trim() || ''
+    .trim() || '')
 }
 
 app.post('/api/refine', async (req, res) => {
