@@ -1563,7 +1563,10 @@ export default function App() {
               style={{ left: nodeRefineMenu.x, top: nodeRefineMenu.y }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="context-menu-title">{nodeRefineMenu.topic}</div>
+              <div className="context-menu-title">
+                <span>Selected</span>
+                <strong>{nodeRefineMenu.topic}</strong>
+              </div>
               <button type="button" onClick={() => runNodeMenuAction('addChild', nodeRefineMenu.nodeId)}>
                 Add child <kbd>Tab</kbd>
               </button>
