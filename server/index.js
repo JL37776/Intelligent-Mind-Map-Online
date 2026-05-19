@@ -28,13 +28,84 @@ Rules:
 6. Put summaries on the line after the node as "> Summary: ...".
 7. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
 
+function buildUserPrompt({ source, instruction, currentOutline }) {
+  return [
+    instruction
+      ? `Editing request:\n${instruction}`
+      : 'Convert the material into a clear, well-structured mind map.',
+    currentOutline ? `\nCurrent outline:\n${currentOutline}` : '',
+    source ? `\nSource material:\n${source}` : '',
+  ].join('\n')
+}
+
+async function requestGroq({ apiKey, model, userPrompt }) {
+  const groq = new Groq({ apiKey })
+  const completion = await groq.chat.completions.create({
+    model: model || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    temperature: 0.25,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+  })
+
+  return completion.choices?.[0]?.message?.content?.trim() || ''
+}
+
+async function requestGemini({ apiKey, model, userPrompt }) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model || process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: userPrompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.25,
+        },
+      }),
+    },
+  )
+
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload.error?.message || 'Gemini request failed.')
+  }
+
+  return payload.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || '')
+    .join('')
+    .trim() || ''
+}
+
 app.post('/api/refine', async (req, res) => {
-  const { source = '', instruction = '', currentOutline = '', apiKey = '', model = '' } = req.body || {}
-  const resolvedApiKey = apiKey || process.env.GROQ_API_KEY
+  const {
+    source = '',
+    instruction = '',
+    currentOutline = '',
+    apiKey = '',
+    model = '',
+    provider = 'groq',
+  } = req.body || {}
+  const resolvedProvider = provider === 'gemini' ? 'gemini' : 'groq'
+  const resolvedApiKey =
+    apiKey ||
+    (resolvedProvider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.GROQ_API_KEY)
 
   if (!resolvedApiKey) {
     return res.status(400).json({
-      error: 'No Groq API key. Enter one in API access or set GROQ_API_KEY in .env.',
+      error: `No ${resolvedProvider === 'gemini' ? 'Gemini' : 'Groq'} API key. Enter one in API access or set it in .env.`,
     })
   }
 
@@ -42,28 +113,16 @@ app.post('/api/refine', async (req, res) => {
     return res.status(400).json({ error: 'source or currentOutline is required.' })
   }
 
-  const userPrompt = [
-    instruction
-      ? `Editing request:\n${instruction}`
-      : 'Convert the material into a clear, well-structured mind map.',
-    currentOutline ? `\nCurrent outline:\n${currentOutline}` : '',
-    source ? `\nSource material:\n${source}` : '',
-  ].join('\n')
+  const userPrompt = buildUserPrompt({ source, instruction, currentOutline })
 
   try {
-    const groq = new Groq({ apiKey: resolvedApiKey })
-    const completion = await groq.chat.completions.create({
-      model: model || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      temperature: 0.25,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    })
+    const outline = resolvedProvider === 'gemini'
+      ? await requestGemini({ apiKey: resolvedApiKey, model, userPrompt })
+      : await requestGroq({ apiKey: resolvedApiKey, model, userPrompt })
 
-    res.json({ outline: completion.choices?.[0]?.message?.content?.trim() || '' })
+    res.json({ outline })
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Groq request failed.' })
+    res.status(500).json({ error: error.message || 'AI request failed.' })
   }
 })
 

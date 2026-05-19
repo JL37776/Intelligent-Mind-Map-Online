@@ -29,39 +29,92 @@ function buildUserPrompt({ source, instruction, currentOutline }) {
   ].join('\n')
 }
 
+function groqModel(model) {
+  return model || 'llama-3.3-70b-versatile'
+}
+
+function geminiModel(model) {
+  return model || 'gemini-2.5-flash'
+}
+
+async function requestGroq({ source, instruction, currentOutline, apiKey, model }) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: groqModel(model),
+      temperature: 0.25,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: buildUserPrompt({ source, instruction, currentOutline }),
+        },
+      ],
+    }),
+  })
+
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload.error?.message || 'Groq request failed')
+  }
+
+  return payload.choices?.[0]?.message?.content?.trim() || ''
+}
+
+async function requestGemini({ source, instruction, currentOutline, apiKey, model }) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: buildUserPrompt({ source, instruction, currentOutline }) }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.25,
+        },
+      }),
+    },
+  )
+
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload.error?.message || 'Gemini request failed')
+  }
+
+  return payload.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || '')
+    .join('')
+    .trim() || ''
+}
+
 export async function refineOutline({
   source,
   instruction,
   currentOutline,
   apiKey,
   model,
+  provider = 'groq',
 }) {
   if (apiKey) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: model || 'llama-3.3-70b-versatile',
-        temperature: 0.25,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: buildUserPrompt({ source, instruction, currentOutline }),
-          },
-        ],
-      }),
-    })
-
-    const payload = await response.json()
-    if (!response.ok) {
-      throw new Error(payload.error?.message || 'Groq request failed')
+    if (provider === 'gemini') {
+      return requestGemini({ source, instruction, currentOutline, apiKey, model })
     }
-
-    return payload.choices?.[0]?.message?.content?.trim() || ''
+    return requestGroq({ source, instruction, currentOutline, apiKey, model })
   }
 
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
@@ -75,7 +128,7 @@ export async function refineOutline({
   const response = await fetch(`${apiPrefix}/api/refine`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source, instruction, currentOutline, model }),
+    body: JSON.stringify({ source, instruction, currentOutline, model, provider }),
   })
   const payload = await response.json()
   if (!response.ok) throw new Error(payload.error || 'Refine failed')
@@ -88,6 +141,7 @@ export async function refineNodeOutline({
   instruction,
   apiKey,
   model,
+  provider,
 }) {
   const scopedInstruction = [
     'You are refining exactly one selected mind map node branch.',
@@ -105,5 +159,6 @@ export async function refineNodeOutline({
     currentOutline: nodeOutline,
     apiKey,
     model,
+    provider,
   })
 }

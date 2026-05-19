@@ -57,12 +57,15 @@ Copy `.env.example` to `.env` and set:
 
 ```text
 GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 The frontend calls `/api/refine`, and the local server keeps the API key out of the browser.
+The `LLM API` panel can switch between Groq and Gemini. Default models are
+`llama-3.3-70b-versatile` and `gemini-2.5-flash`.
 
-You can also paste a Groq API key into the app's API access panel for a temporary
-session. When a key is present, the static frontend can call Groq directly, which
+You can also paste a Groq or Gemini API key into the app's API access panel for a temporary
+session. When a key is present, the static frontend can call the selected provider directly, which
 is useful for GitHub Pages deployment. Without a key in the UI, local development
 falls back to `/api/refine`.
 
@@ -76,5 +79,5 @@ projects.
 ## GitHub Pages
 
 This app can run as a static GitHub Pages site. For AI refine on Pages, enter a
-Groq API key in the collapsed `LLM API` panel. Local save, auto-save, recent
+Groq or Gemini API key in the collapsed `LLM API` panel. Local save, auto-save, recent
 projects, screenshots, themes, and prompt presets all stay in the browser.

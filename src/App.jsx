@@ -57,6 +57,10 @@ import {
 const DEFAULT_SKELETON = 'bright'
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'
 const SEEN_VERSION_KEY = 'intelligent-ai-mind-map-seen-version'
+const providerDefaults = {
+  groq: 'llama-3.3-70b-versatile',
+  gemini: 'gemini-2.5-flash',
+}
 const initialData = applySkeletonPreset(
   outlineToMindData(starterOutline),
   DEFAULT_SKELETON,
@@ -215,8 +219,9 @@ export default function App() {
   const [outline, setOutline] = useState(starterOutline)
   const [mindData, setMindData] = useState(initialData)
   const [skeletonId, setSkeletonId] = useState(DEFAULT_SKELETON)
+  const [apiProvider, setApiProvider] = useState('groq')
   const [apiKey, setApiKey] = useState('')
-  const [apiModel, setApiModel] = useState('llama-3.3-70b-versatile')
+  const [apiModel, setApiModel] = useState(providerDefaults.groq)
   const [promptPresets, setPromptPresets] = useState(defaultPromptPresets)
   const [fullPromptPresetId, setFullPromptPresetId] = useState(defaultPromptPresets[0].id)
   const [defaultNodePresetId, setDefaultNodePresetId] = useState(defaultPromptPresets[0].id)
@@ -379,7 +384,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [nodePrompt, apiKey, apiModel, nodeContextMode, mindData, skeletonId, defaultNodePresetId, promptPresets])
+  }, [nodePrompt, apiProvider, apiKey, apiModel, nodeContextMode, mindData, skeletonId, defaultNodePresetId, promptPresets])
 
   useEffect(() => {
     const handleMouseOver = (event) => {
@@ -614,6 +619,11 @@ export default function App() {
     setShowUpdateNotice(false)
   }
 
+  function selectApiProvider(provider) {
+    setApiProvider(provider)
+    setApiModel(providerDefaults[provider] || providerDefaults.groq)
+  }
+
   function togglePanel(panelId) {
     setCollapsedPanels((current) => ({
       ...current,
@@ -700,6 +710,7 @@ export default function App() {
       const refinedOutline = await refineOutline({
         source,
         instruction: selectedPreset.prompt,
+        provider: apiProvider,
         apiKey,
         model: apiModel,
         currentOutline: mindDataToOutline(
@@ -747,6 +758,7 @@ export default function App() {
         nodeOutline: mindDataToOutline({ nodeData: target }),
         fullOutline: nodeContextOutline(current, targetId, nodeContextMode),
         instruction: prompt,
+        provider: apiProvider,
         apiKey,
         model: apiModel,
       })
@@ -1277,22 +1289,30 @@ export default function App() {
         </section>
 
         <details className="settings-panel api-details">
-          <summary data-tooltip="Open Groq model and API key settings">
+          <summary data-tooltip="Open model and API key settings">
             <span>LLM API</span>
             <KeyRound size={15} />
           </summary>
+          <select
+            aria-label="AI provider"
+            value={apiProvider}
+            onChange={(event) => selectApiProvider(event.target.value)}
+          >
+            <option value="groq">Groq</option>
+            <option value="gemini">Gemini</option>
+          </select>
           <input
-            aria-label="Groq API key"
+            aria-label={`${apiProvider} API key`}
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}
-            placeholder="Optional Groq API key for this session"
+            placeholder={`Optional ${apiProvider === 'gemini' ? 'Gemini' : 'Groq'} API key for this session`}
             type="password"
           />
           <input
-            aria-label="Groq model"
+            aria-label={`${apiProvider} model`}
             value={apiModel}
             onChange={(event) => setApiModel(event.target.value)}
-            placeholder="Groq model"
+            placeholder={apiProvider === 'gemini' ? 'Gemini model' : 'Groq model'}
           />
         </details>
       </aside>
