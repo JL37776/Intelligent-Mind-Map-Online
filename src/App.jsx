@@ -61,6 +61,7 @@ const providerDefaults = {
   groq: 'llama-3.3-70b-versatile',
   gemini: 'gemini-2.5-flash',
 }
+const apiSettingsKey = 'intelligent-ai-mind-map-api-settings'
 const initialData = applySkeletonPreset(
   outlineToMindData(starterOutline),
   DEFAULT_SKELETON,
@@ -162,6 +163,18 @@ function clampContextMenuPosition(clientX, clientY) {
   }
 }
 
+function loadApiSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(apiSettingsKey) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveApiSettings(settings) {
+  localStorage.setItem(apiSettingsKey, JSON.stringify(settings))
+}
+
 function replaceNodeById(node, id, replacement) {
   if (!node || !id) return false
   if (node.id === id) {
@@ -216,6 +229,7 @@ async function imageFileToNodeImage(file) {
 }
 
 export default function App() {
+  const initialApiSettings = useMemo(loadApiSettings, [])
   const mapRef = useRef(null)
   const mindRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -233,9 +247,15 @@ export default function App() {
   const [outline, setOutline] = useState(starterOutline)
   const [mindData, setMindData] = useState(initialData)
   const [skeletonId, setSkeletonId] = useState(DEFAULT_SKELETON)
-  const [apiProvider, setApiProvider] = useState('groq')
-  const [apiKey, setApiKey] = useState('')
-  const [apiModel, setApiModel] = useState(providerDefaults.groq)
+  const [apiProvider, setApiProvider] = useState(initialApiSettings.provider || 'groq')
+  const [apiKey, setApiKey] = useState(
+    initialApiSettings.providers?.[initialApiSettings.provider || 'groq']?.key || '',
+  )
+  const [apiModel, setApiModel] = useState(
+    initialApiSettings.providers?.[initialApiSettings.provider || 'groq']?.model ||
+      providerDefaults[initialApiSettings.provider || 'groq'] ||
+      providerDefaults.groq,
+  )
   const [promptPresets, setPromptPresets] = useState(defaultPromptPresets)
   const [fullPromptPresetId, setFullPromptPresetId] = useState(defaultPromptPresets[0].id)
   const [defaultNodePresetId, setDefaultNodePresetId] = useState(defaultPromptPresets[0].id)
@@ -281,6 +301,21 @@ export default function App() {
   useEffect(() => {
     promptPresetsRef.current = promptPresets
   }, [promptPresets])
+
+  useEffect(() => {
+    const currentSettings = loadApiSettings()
+    saveApiSettings({
+      ...currentSettings,
+      provider: apiProvider,
+      providers: {
+        ...(currentSettings.providers || {}),
+        [apiProvider]: {
+          key: apiKey,
+          model: apiModel,
+        },
+      },
+    })
+  }, [apiProvider, apiKey, apiModel])
 
   useEffect(() => {
     const seenVersion = localStorage.getItem(SEEN_VERSION_KEY)
@@ -667,8 +702,11 @@ export default function App() {
   }
 
   function selectApiProvider(provider) {
+    const settings = loadApiSettings()
+    const providerSettings = settings.providers?.[provider] || {}
     setApiProvider(provider)
-    setApiModel(providerDefaults[provider] || providerDefaults.groq)
+    setApiKey(providerSettings.key || '')
+    setApiModel(providerSettings.model || providerDefaults[provider] || providerDefaults.groq)
   }
 
   function togglePanel(panelId) {
