@@ -13,6 +13,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Crosshair,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
   Save,
   Sparkles,
   Trash2,
@@ -211,6 +214,7 @@ export default function App() {
   const [isBusy, setIsBusy] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const [showUpdateNotice, setShowUpdateNotice] = useState(false)
+  const [zoomPercent, setZoomPercent] = useState(100)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
   })
@@ -557,6 +561,28 @@ export default function App() {
   function centerMap() {
     mindRef.current?.toCenter()
     setStatus('Centered')
+  }
+
+  function setMapZoom(nextScale) {
+    const mind = mindRef.current
+    if (!mind) return
+    const clamped = Math.max(0.3, Math.min(1.8, nextScale))
+    mind.scale(clamped)
+    setZoomPercent(Math.round(clamped * 100))
+    setStatus(`Zoom ${Math.round(clamped * 100)}%`)
+  }
+
+  function zoomMap(direction) {
+    const current = mindRef.current?.scaleVal || zoomPercent / 100
+    setMapZoom(current + direction * 0.1)
+  }
+
+  function fitMap() {
+    const mind = mindRef.current
+    if (!mind) return
+    mind.scaleFit?.()
+    setZoomPercent(Math.round((mind.scaleVal || 1) * 100))
+    setStatus('Fit to view')
   }
 
   function dismissUpdateNotice() {
@@ -1262,6 +1288,18 @@ export default function App() {
             <button type="button" onClick={centerMap} data-tooltip="Reset the view to the center of the mind map">
               <Crosshair size={16} />
               Center
+            </button>
+            <button type="button" onClick={() => zoomMap(-1)} data-tooltip="Zoom out">
+              <ZoomOut size={16} />
+              {zoomPercent}%
+            </button>
+            <button type="button" onClick={() => zoomMap(1)} data-tooltip="Zoom in">
+              <ZoomIn size={16} />
+              Zoom
+            </button>
+            <button type="button" onClick={fitMap} data-tooltip="Fit the whole mind map into view">
+              <Maximize2 size={16} />
+              Fit
             </button>
             <button type="button" onClick={() => fileInputRef.current?.click()} data-tooltip="Insert an image into the selected node">
               <ImagePlus size={16} />

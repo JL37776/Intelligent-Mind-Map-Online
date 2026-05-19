@@ -244,9 +244,12 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100vh;
+  min-height: 0;
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px;
 }
 
@@ -350,7 +353,10 @@ button:disabled {
 
 .left-collapsed .sidebar {
   border-right: 0;
+  height: 100vh;
+  overflow: hidden;
   padding: 0;
+  visibility: hidden;
 }
 
 .brand-row,
@@ -746,7 +752,9 @@ select {
 
 .workspace {
   display: grid;
+  height: 100vh;
   grid-template-rows: 58px minmax(0, 1fr) 34px;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -754,6 +762,9 @@ select {
   background: #ffffff;
   border-bottom: 1px solid #d8dee7;
   gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: 10px 14px;
 }
 
@@ -814,6 +825,11 @@ select {
 .toolbar-actions {
   display: flex;
   gap: 8px;
+  min-width: 0;
+}
+
+.toolbar-actions button {
+  flex: 0 0 auto;
 }
 
 .style-controls {
@@ -1066,7 +1082,9 @@ select {
   .sidebar {
     border-bottom: 1px solid #d8dee7;
     border-right: 0;
+    height: auto;
     max-height: 48vh;
+    min-height: 0;
   }
 
   .left-collapsed .sidebar {
@@ -1074,6 +1092,7 @@ select {
   }
 
   .workspace {
+    height: auto;
     min-height: 52vh;
   }
 
