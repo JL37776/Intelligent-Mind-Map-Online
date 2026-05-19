@@ -195,6 +195,38 @@ button:disabled {
   z-index: 600;
 }
 
+.update-notice {
+  align-items: flex-start;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding-top: 18px;
+  pointer-events: none;
+  position: fixed;
+  z-index: 700;
+}
+
+.update-notice-panel {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  color: #1e293b;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  max-width: min(440px, calc(100vw - 28px));
+  padding: 10px 12px;
+  pointer-events: auto;
+}
+
+.update-notice-panel p {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 420px minmax(0, 1fr);

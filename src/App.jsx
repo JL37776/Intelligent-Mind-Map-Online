@@ -4,6 +4,7 @@ import 'mind-elixir/style.css'
 import { toPng } from 'html-to-image'
 import {
   Download,
+  Bell,
   FileDown,
   FileUp,
   HardDrive,
@@ -50,6 +51,8 @@ import {
 } from './stylePresets'
 
 const DEFAULT_SKELETON = 'bright'
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'
+const SEEN_VERSION_KEY = 'intelligent-ai-mind-map-seen-version'
 const initialData = applySkeletonPreset(
   outlineToMindData(starterOutline),
   DEFAULT_SKELETON,
@@ -207,6 +210,7 @@ export default function App() {
   const [isLeftOpen, setIsLeftOpen] = useState(true)
   const [isBusy, setIsBusy] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
+  const [showUpdateNotice, setShowUpdateNotice] = useState(false)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
   })
@@ -229,6 +233,11 @@ export default function App() {
   useEffect(() => {
     promptPresetsRef.current = promptPresets
   }, [promptPresets])
+
+  useEffect(() => {
+    const seenVersion = localStorage.getItem(SEEN_VERSION_KEY)
+    if (seenVersion !== APP_VERSION) setShowUpdateNotice(true)
+  }, [])
 
   useEffect(() => {
     if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
@@ -548,6 +557,11 @@ export default function App() {
   function centerMap() {
     mindRef.current?.toCenter()
     setStatus('Centered')
+  }
+
+  function dismissUpdateNotice() {
+    localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION)
+    setShowUpdateNotice(false)
   }
 
   async function refreshMapList() {
@@ -1380,6 +1394,20 @@ export default function App() {
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           {tooltip.text}
+        </div>
+      )}
+      {showUpdateNotice && (
+        <div className="update-notice" role="dialog" aria-modal="true" aria-label="App update">
+          <div className="update-notice-panel">
+            <Bell size={18} />
+            <div>
+              <strong>Updated</strong>
+              <p>New version loaded: {APP_VERSION}</p>
+            </div>
+            <button type="button" onClick={dismissUpdateNotice}>
+              Got it
+            </button>
+          </div>
         </div>
       )}
     </main>
