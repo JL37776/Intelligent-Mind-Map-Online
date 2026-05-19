@@ -1,18 +1,23 @@
 const systemPrompt = `You are a mind map editing assistant.
 Only output a Markdown outline. Do not explain. Do not wrap the answer in a code block.
 Required format:
-# Root topic
+# Root topic [!important]
+> Summary: Optional one-line node summary.
 ## Main branch
-### Sub branch
-- Detail node
-- Another detail node
+### Sub branch [!plain]
+- Detail node [!muted]
+- [Link] URL
+- [ ] task
+- [Image] visual note
 
 Rules:
 1. Heading and list nesting represent mind map hierarchy.
 2. Keep every node short, clear, and easy to edit.
 3. Avoid empty structural nodes like "Overview", "Summary", or "Conclusion".
 4. When the user asks for a change, preserve unrelated branches and only revise the relevant part.
-5. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
+5. Use [!important], [!plain], or [!muted] at the end of a node when emphasis matters.
+6. Put summaries on the line after the node as "> Summary: ...".
+7. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
 
 function buildUserPrompt({ source, instruction, currentOutline }) {
   return [
@@ -59,7 +64,15 @@ export async function refineOutline({
     return payload.choices?.[0]?.message?.content?.trim() || ''
   }
 
-  const response = await fetch('/api/refine', {
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+
+  if (!apiBaseUrl && !isLocalHost) {
+    throw new Error('Static deployment needs an API key in LLM API, or set VITE_API_BASE_URL to your proxy.')
+  }
+
+  const apiPrefix = apiBaseUrl.replace(/\/$/, '')
+  const response = await fetch(`${apiPrefix}/api/refine`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ source, instruction, currentOutline, model }),

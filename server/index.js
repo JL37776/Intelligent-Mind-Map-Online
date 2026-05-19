@@ -10,18 +10,23 @@ app.use(express.json({ limit: '2mb' }))
 const systemPrompt = `You are a mind map editing assistant.
 Only output a Markdown outline. Do not explain. Do not wrap the answer in a code block.
 Required format:
-# Root topic
+# Root topic [!important]
+> Summary: Optional one-line node summary.
 ## Main branch
-### Sub branch
-- Detail node
-- Another detail node
+### Sub branch [!plain]
+- Detail node [!muted]
+- [Link] URL
+- [ ] task
+- [Image] visual note
 
 Rules:
 1. Heading and list nesting represent mind map hierarchy.
 2. Keep every node short, clear, and easy to edit.
 3. Avoid empty structural nodes like "Overview", "Summary", or "Conclusion".
 4. When the user asks for a change, preserve unrelated branches and only revise the relevant part.
-5. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
+5. Use [!important], [!plain], or [!muted] at the end of a node when emphasis matters.
+6. Put summaries on the line after the node as "> Summary: ...".
+7. Images, links, and tasks may be represented as plain node text, such as [Image] screenshot note, [Link] URL, or [ ] task.`
 
 app.post('/api/refine', async (req, res) => {
   const { source = '', instruction = '', currentOutline = '', apiKey = '', model = '' } = req.body || {}

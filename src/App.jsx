@@ -11,6 +11,7 @@ import {
   KeyRound,
   PanelLeftClose,
   PanelLeftOpen,
+  Crosshair,
   Save,
   Sparkles,
   Trash2,
@@ -179,6 +180,7 @@ export default function App() {
   const bootstrappedRef = useRef(false)
   const dirtyRef = useRef(false)
   const autosaveTimerRef = useRef(null)
+  const sourceSyncedFromMapRef = useRef(false)
   const [source, setSource] = useState(starterOutline)
   const [sourceMode, setSourceMode] = useState('raw')
   const [outline, setOutline] = useState(starterOutline)
@@ -227,6 +229,25 @@ export default function App() {
   useEffect(() => {
     promptPresetsRef.current = promptPresets
   }, [promptPresets])
+
+  useEffect(() => {
+    if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
+      sourceSyncedFromMapRef.current = false
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      const current = normalizeMindData(mindRef.current?.getData() || mindData)
+      const styleSnapshot = collectNodeStylesByTopicPath(current)
+      const next = restoreNodeStylesByTopicPath(
+        outlineToMindData(source),
+        styleSnapshot,
+      )
+      refreshMind(next, 'Synced from raw text', skeletonId, { center: false, syncSource: false })
+    }, 450)
+
+    return () => window.clearTimeout(timer)
+  }, [source])
 
   useEffect(() => {
     if (!bootstrappedRef.current) return
@@ -446,8 +467,11 @@ export default function App() {
         normalizeMindData(mindRef.current.getData()),
         skeletonId,
       )
+      const nextOutline = mindDataToOutline(next)
       setMindData(next)
-      setOutline(mindDataToOutline(next))
+      setOutline(nextOutline)
+      sourceSyncedFromMapRef.current = true
+      setSource(nextOutline)
       setStatus(message)
     }, 120)
   }
@@ -496,19 +520,34 @@ export default function App() {
     }
   }
 
-  function refreshMind(nextData, message = 'Map refreshed', nextSkeletonId = skeletonId) {
+  function refreshMind(
+    nextData,
+    message = 'Map refreshed',
+    nextSkeletonId = skeletonId,
+    options = {},
+  ) {
     const normalized = applySkeletonPreset(
       normalizeMindData(nextData),
       nextSkeletonId,
     )
+    const nextOutline = mindDataToOutline(normalized)
     setMindData(normalized)
-    setOutline(mindDataToOutline(normalized))
+    setOutline(nextOutline)
+    if (options.syncSource !== false) {
+      sourceSyncedFromMapRef.current = true
+      setSource(nextOutline)
+    }
     if (mindRef.current) {
       mindRef.current.changeTheme(getMindTheme(nextSkeletonId), false)
       mindRef.current.refresh(normalized)
-      mindRef.current.toCenter()
+      if (options.center !== false) mindRef.current.toCenter()
     }
     setStatus(message)
+  }
+
+  function centerMap() {
+    mindRef.current?.toCenter()
+    setStatus('Centered')
   }
 
   async function refreshMapList() {
@@ -1206,6 +1245,10 @@ export default function App() {
             </div>
           </div>
           <div className="toolbar-actions">
+            <button type="button" onClick={centerMap} data-tooltip="Reset the view to the center of the mind map">
+              <Crosshair size={16} />
+              Center
+            </button>
             <button type="button" onClick={() => fileInputRef.current?.click()} data-tooltip="Insert an image into the selected node">
               <ImagePlus size={16} />
               Image
