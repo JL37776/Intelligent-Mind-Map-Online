@@ -67,6 +67,9 @@ const initialData = applySkeletonPreset(
 )
 const AUTOSAVE_DELAY = 1400
 const TIMED_SAVE_INTERVAL = 30000
+const CONTEXT_MENU_WIDTH = 360
+const CONTEXT_MENU_HEIGHT = 520
+const CONTEXT_MENU_MARGIN = 14
 
 function downloadText(filename, text, type = 'application/json') {
   const blob = new Blob([text], { type })
@@ -149,6 +152,16 @@ function nodeContextOutline(data, targetId, contextMode) {
   return mindDataToOutline(stripImagesForAI({ nodeData: contextRoot }))
 }
 
+function clampContextMenuPosition(clientX, clientY) {
+  const maxX = window.innerWidth - CONTEXT_MENU_WIDTH - CONTEXT_MENU_MARGIN
+  const maxY = window.innerHeight - CONTEXT_MENU_HEIGHT - CONTEXT_MENU_MARGIN
+
+  return {
+    x: Math.max(CONTEXT_MENU_MARGIN, Math.min(clientX, maxX)),
+    y: Math.max(CONTEXT_MENU_MARGIN, Math.min(clientY, maxY)),
+  }
+}
+
 function replaceNodeById(node, id, replacement) {
   if (!node || !id) return false
   if (node.id === id) {
@@ -229,6 +242,7 @@ export default function App() {
   const [presetName, setPresetName] = useState('')
   const [presetPrompt, setPresetPrompt] = useState('')
   const [editingPresetId, setEditingPresetId] = useState(null)
+  const [isPresetEditorOpen, setIsPresetEditorOpen] = useState(false)
   const [nodeRefineTarget, setNodeRefineTarget] = useState('No node selected')
   const [nodeContextMode, setNodeContextMode] = useState('1')
   const [isNodeBusy, setIsNodeBusy] = useState(false)
@@ -501,9 +515,10 @@ export default function App() {
     event.preventDefault()
     event.stopPropagation()
     setNodeRefineTargetById(nodeId, 'Right-click target ready for AI refine')
+    const position = clampContextMenuPosition(event.clientX, event.clientY)
     setNodeRefineMenu({
-      x: event.clientX,
-      y: event.clientY,
+      x: position.x,
+      y: position.y,
       nodeId,
       topic: topicEl.nodeObj?.topic || 'Selected node',
     })
@@ -966,6 +981,7 @@ export default function App() {
     setPresetName('')
     setPresetPrompt('')
     setEditingPresetId(null)
+    setIsPresetEditorOpen(false)
     setStatus(editingPresetId ? 'Preset updated' : 'Preset added')
   }
 
@@ -973,6 +989,7 @@ export default function App() {
     setEditingPresetId(preset.id)
     setPresetName(preset.name)
     setPresetPrompt(preset.prompt)
+    setIsPresetEditorOpen(true)
   }
 
   function deletePreset(id) {
@@ -989,6 +1006,7 @@ export default function App() {
       setEditingPresetId(null)
       setPresetName('')
       setPresetPrompt('')
+      setIsPresetEditorOpen(false)
     }
     setStatus('Preset deleted')
   }
@@ -1235,26 +1253,52 @@ export default function App() {
             </label>
           </div>
 
-          <input
-            value={presetName}
-            onChange={(event) => setPresetName(event.target.value)}
-            placeholder="Preset name"
-          />
-          <textarea
-            className="compact-textarea"
-            value={presetPrompt}
-            onChange={(event) => setPresetPrompt(event.target.value)}
-            placeholder="Preset prompt"
-            spellCheck="false"
-          />
-          <button
-            type="button"
-            onClick={savePreset}
-            data-tooltip={editingPresetId ? 'Update the selected prompt preset' : 'Add a new reusable prompt preset'}
-          >
-            <Plus size={16} />
-            {editingPresetId ? 'Update Preset' : 'Add Preset'}
-          </button>
+          {isPresetEditorOpen ? (
+            <div className="preset-editor">
+              <input
+                value={presetName}
+                onChange={(event) => setPresetName(event.target.value)}
+                placeholder="Preset name"
+              />
+              <textarea
+                className="compact-textarea"
+                value={presetPrompt}
+                onChange={(event) => setPresetPrompt(event.target.value)}
+                placeholder="Preset prompt"
+                spellCheck="false"
+              />
+              <div className="preset-editor-actions">
+                <button
+                  type="button"
+                  onClick={savePreset}
+                  data-tooltip={editingPresetId ? 'Update the selected prompt preset' : 'Save a new reusable prompt preset'}
+                >
+                  <Save size={16} />
+                  {editingPresetId ? 'Save Update' : 'Save Preset'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPresetEditorOpen(false)
+                    setEditingPresetId(null)
+                    setPresetName('')
+                    setPresetPrompt('')
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsPresetEditorOpen(true)}
+              data-tooltip="Open the preset editor"
+            >
+              <Plus size={16} />
+              Add Preset
+            </button>
+          )}
           <div className="preset-table">
             <div className="preset-table-head">
               <span>Default</span>
