@@ -289,7 +289,7 @@ export default function App() {
   const dirtyRef = useRef(false)
   const autosaveTimerRef = useRef(null)
   const sourceSyncedFromMapRef = useRef(false)
-  const projectOpenRef = useRef(null)
+  const projectMenuRef = useRef(null)
   const [source, setSource] = useState(starterOutline)
   const [sourceMode, setSourceMode] = useState('raw')
   const [autoUpdateMap, setAutoUpdateMap] = useState(true)
@@ -328,7 +328,7 @@ export default function App() {
   const [showUpdateNotice, setShowUpdateNotice] = useState(false)
   const [zoomPercent, setZoomPercent] = useState(100)
   const [collapsedPanels, setCollapsedPanels] = useState(initialUiPrefs.collapsedPanels)
-  const [isProjectOpenListVisible, setIsProjectOpenListVisible] = useState(false)
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
   const [mindLayout, setMindLayout] = useState(initialUiPrefs.mindLayout)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
@@ -383,27 +383,27 @@ export default function App() {
   }, [collapsedPanels, isLeftOpen, mindLayout, skeletonId])
 
   useEffect(() => {
-    if (!isProjectOpenListVisible) return undefined
+    if (!isProjectMenuOpen) return undefined
 
-    const closeProjectOpenList = (event) => {
+    const closeProjectMenu = (event) => {
       if (event.key === 'Escape') {
-        setIsProjectOpenListVisible(false)
+        setIsProjectMenuOpen(false)
         return
       }
 
-      if (event.type === 'pointerdown' && !projectOpenRef.current?.contains(event.target)) {
-        setIsProjectOpenListVisible(false)
+      if (event.type === 'pointerdown' && !projectMenuRef.current?.contains(event.target)) {
+        setIsProjectMenuOpen(false)
       }
     }
 
-    document.addEventListener('pointerdown', closeProjectOpenList)
-    document.addEventListener('keydown', closeProjectOpenList, true)
+    document.addEventListener('pointerdown', closeProjectMenu)
+    document.addEventListener('keydown', closeProjectMenu, true)
 
     return () => {
-      document.removeEventListener('pointerdown', closeProjectOpenList)
-      document.removeEventListener('keydown', closeProjectOpenList, true)
+      document.removeEventListener('pointerdown', closeProjectMenu)
+      document.removeEventListener('keydown', closeProjectMenu, true)
     }
-  }, [isProjectOpenListVisible])
+  }, [isProjectMenuOpen])
 
   useEffect(() => {
     if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
@@ -523,6 +523,33 @@ export default function App() {
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
   }, [apiProvider, apiKey, apiModel, nodeContextMode, mindData, skeletonId, defaultNodePresetId, promptPresets])
+
+  useEffect(() => {
+    const handleProjectShortcuts = (event) => {
+      const tagName = event.target?.tagName
+      const isTyping =
+        tagName === 'INPUT' || tagName === 'TEXTAREA' || event.target?.isContentEditable
+      if (isTyping || !(event.ctrlKey || event.metaKey)) return
+
+      const key = event.key.toLowerCase()
+      if (key === 's') {
+        event.preventDefault()
+        saveCurrentMap()
+      }
+      if (key === 'o') {
+        event.preventDefault()
+        setIsProjectMenuOpen(false)
+        importInputRef.current?.click()
+      }
+      if (key === 'n') {
+        event.preventDefault()
+        newMap()
+      }
+    }
+
+    window.addEventListener('keydown', handleProjectShortcuts)
+    return () => window.removeEventListener('keydown', handleProjectShortcuts)
+  }, [activeId, source, mindData, skeletonId])
 
   useEffect(() => {
     const handleMouseOver = (event) => {
@@ -1230,7 +1257,7 @@ export default function App() {
 
   function newMap() {
     const id = `map-${Date.now()}`
-    setIsProjectOpenListVisible(false)
+    setIsProjectMenuOpen(false)
     setActiveId(id)
     setLastSavedAt(null)
     setSource(starterOutline)
@@ -1238,9 +1265,9 @@ export default function App() {
     refreshMind(outlineToMindData(starterOutline), 'New map', skeletonId)
   }
 
-  async function openMapFromProjectList(id) {
-    await loadSavedMap(id)
-    setIsProjectOpenListVisible(false)
+  function runProjectCommand(command) {
+    setIsProjectMenuOpen(false)
+    command()
   }
 
   return (
@@ -1325,53 +1352,68 @@ export default function App() {
             </span>
           </button>
           <div className="project-actions panel-body">
-            <button type="button" onClick={saveCurrentMap} data-tooltip="Save the current project locally">
-              <Save size={16} />
-              Save
-            </button>
-            <div className="project-open-anchor" ref={projectOpenRef}>
+            <div className="project-menu-anchor" ref={projectMenuRef}>
               <button
+                className="project-menu-trigger"
                 type="button"
-                onClick={() => setIsProjectOpenListVisible((current) => !current)}
-                data-tooltip="Show local projects to open"
-                aria-expanded={isProjectOpenListVisible}
+                onClick={() => setIsProjectMenuOpen((current) => !current)}
+                data-tooltip="Open project commands"
+                aria-expanded={isProjectMenuOpen}
                 aria-haspopup="menu"
               >
-                <FileUp size={16} />
-                Open
+                <Save size={16} />
+                <span>File</span>
+                <ChevronDown size={15} />
               </button>
-              {isProjectOpenListVisible && (
-                <div className="project-open-list" aria-label="Open local project" role="menu">
-                  {maps.length === 0 ? (
-                    <p className="empty-state">No recent projects yet.</p>
-                  ) : (
-                    maps.map((map) => (
-                      <div
-                        className={`project-open-row ${map.id === activeId ? 'active' : ''}`}
-                        key={map.id}
-                      >
-                        <button type="button" onClick={() => openMapFromProjectList(map.id)} role="menuitem">
-                          <span>{map.title}</span>
-                          <small>{formatSavedTime(map.updatedAt)}</small>
-                        </button>
-                        <button
-                          className="icon-button subtle"
-                          type="button"
-                          aria-label={`Delete local project: ${map.title}`}
-                          onClick={() => removeSavedMap(map.id)}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    ))
-                  )}
+              {isProjectMenuOpen && (
+                <div className="project-command-menu" aria-label="Project file commands" role="menu">
+                  <button type="button" onClick={() => runProjectCommand(newMap)} role="menuitem">
+                    <span>
+                      <Plus size={16} />
+                      New Mind Map
+                    </span>
+                    <kbd>Ctrl+N</kbd>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runProjectCommand(() => importInputRef.current?.click())}
+                    role="menuitem"
+                  >
+                    <span>
+                      <FileUp size={16} />
+                      Open...
+                    </span>
+                    <kbd>Ctrl+O</kbd>
+                  </button>
+                  <button type="button" onClick={() => runProjectCommand(saveCurrentMap)} role="menuitem">
+                    <span>
+                      <Save size={16} />
+                      Save
+                    </span>
+                    <kbd>Ctrl+S</kbd>
+                  </button>
+                  <div className="project-menu-separator" />
+                  <button type="button" onClick={() => runProjectCommand(exportPng)} role="menuitem">
+                    <span>
+                      <Download size={16} />
+                      Export PNG
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => runProjectCommand(exportMarkdown)} role="menuitem">
+                    <span>
+                      <FileDown size={16} />
+                      Export Markdown
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => runProjectCommand(exportJson)} role="menuitem">
+                    <span>
+                      <FileDown size={16} />
+                      Export JSON
+                    </span>
+                  </button>
                 </div>
               )}
             </div>
-            <button type="button" onClick={newMap} data-tooltip="Create a new mind map project">
-              <Plus size={16} />
-              Add
-            </button>
           </div>
         </section>
 

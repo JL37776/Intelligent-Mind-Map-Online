@@ -362,31 +362,41 @@ button:disabled {
   border-color: #38bdf8;
 }
 
-.app-theme-mono .map-row.active > button:first-child,
-.app-theme-mono .project-open-row.active > button:first-child {
+.app-theme-mono .map-row.active > button:first-child {
   background: #172554;
   border-color: #38bdf8;
 }
 
 .app-theme-mono .map-row.active > button:first-child span,
-.app-theme-mono .project-open-row.active > button:first-child span,
 .app-theme-mono .target-pill strong {
   color: #7dd3fc;
 }
 
 .app-theme-mono .map-row > button:first-child small,
-.app-theme-mono .project-open-row > button:first-child small,
 .app-theme-mono .target-pill {
   color: #93c5fd;
 }
 
 .app-theme-mono .target-pill,
 .app-theme-mono .segmented-tabs,
-.app-theme-mono .project-open-list,
 .app-theme-mono .preset-table,
 .app-theme-mono .preset-table-head {
   background: #0f172a;
   border-color: #1e40af;
+}
+
+.app-theme-mono .project-command-menu {
+  background: #0b1220;
+  border-color: #1e40af;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
+}
+
+.app-theme-mono .project-command-menu kbd {
+  color: #93c5fd;
+}
+
+.app-theme-mono .project-menu-separator {
+  background: #1e3a8a;
 }
 
 .app-theme-mono .segmented-tabs button.active {
@@ -547,23 +557,29 @@ select {
 }
 
 .project-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .project-actions button {
   padding: 0 8px;
 }
 
-.project-open-anchor {
+.project-menu-anchor {
   min-width: 0;
   position: relative;
 }
 
-.project-open-anchor > button {
+.project-menu-trigger {
+  justify-content: space-between;
   width: 100%;
 }
 
-.project-open-list {
+.project-menu-trigger > span {
+  flex: 1;
+  text-align: left;
+}
+
+.project-command-menu {
   background: #ffffff;
   border: 1px solid rgba(191, 208, 231, 0.9);
   border-radius: 18px;
@@ -582,51 +598,48 @@ select {
   z-index: 40;
 }
 
-.project-open-row {
+.project-command-menu button {
   align-items: center;
-  display: flex;
-  gap: 4px;
-  min-width: 0;
-  padding: 0 12px;
-}
-
-.project-open-row > button:first-child {
-  align-items: flex-start;
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
+  color: #132845;
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  height: 52px;
-  justify-content: center;
+  font-size: 15px;
+  gap: 18px;
+  height: 46px;
+  justify-content: space-between;
   min-width: 0;
-  overflow: hidden;
-  padding: 0 10px;
+  padding: 0 20px;
   text-align: left;
+  width: 100%;
 }
 
-.project-open-row > button:first-child span,
-.project-open-row > button:first-child small {
-  max-width: 100%;
+.project-command-menu button:hover {
+  background: #eaf2ff;
+  border-color: transparent;
+}
+
+.project-command-menu button span {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.project-command-menu kbd {
+  background: transparent;
+  color: #7c8798;
+  font-family: inherit;
+  font-size: 13px;
   white-space: nowrap;
 }
 
-.project-open-row > button:first-child small {
-  color: #7c8798;
-  font-size: 11px;
-}
-
-.project-open-row.active > button:first-child {
-  background: #eaf2ff;
-}
-
-.project-open-row.active > button:first-child span {
-  color: #123d75;
-  font-weight: 700;
+.project-menu-separator {
+  background: #d7e1ee;
+  height: 1px;
+  margin: 8px 0;
 }
 
 .full-map-actions {
