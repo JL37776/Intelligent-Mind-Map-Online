@@ -291,7 +291,7 @@ button:disabled {
     #edf2f8;
   background-size: 28px 28px;
   display: grid;
-  grid-template-columns: 420px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 420px) minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -313,12 +313,17 @@ button:disabled {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 18px;
+  position: relative;
 }
 
 .app-theme-mono .sidebar {
   background: #070b16;
   border-right-color: #1e3a8a;
   color: #e0f2fe;
+}
+
+.app-theme-mono .sidebar-resize-handle::after {
+  background: #38bdf8;
 }
 
 .app-theme-mono .brand-row p,
@@ -444,6 +449,45 @@ button:disabled {
   overflow: hidden;
   padding: 0;
   visibility: hidden;
+}
+
+.sidebar-resize-handle {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  bottom: 0;
+  cursor: col-resize;
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  touch-action: none;
+  width: 10px;
+  z-index: 60;
+}
+
+.sidebar-resize-handle::after {
+  background: #8bb5ed;
+  border-radius: 999px;
+  bottom: 14px;
+  content: "";
+  opacity: 0;
+  position: absolute;
+  right: 3px;
+  top: 14px;
+  transition: opacity 0.16s ease;
+  width: 3px;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after,
+.is-resizing-sidebar .sidebar-resize-handle::after {
+  opacity: 1;
+}
+
+.is-resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .brand-row,
@@ -1451,6 +1495,10 @@ select {
   }
 
   .left-collapsed .sidebar {
+    display: none;
+  }
+
+  .sidebar-resize-handle {
     display: none;
   }
 

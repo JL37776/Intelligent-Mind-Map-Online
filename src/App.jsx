@@ -73,6 +73,9 @@ const TIMED_SAVE_INTERVAL = 30000
 const CONTEXT_MENU_WIDTH = 360
 const CONTEXT_MENU_HEIGHT = 520
 const CONTEXT_MENU_MARGIN = 14
+const DEFAULT_SIDEBAR_WIDTH = 420
+const MIN_SIDEBAR_WIDTH = 320
+const MAX_SIDEBAR_WIDTH = 640
 
 function downloadText(filename, text, type = 'application/json') {
   const blob = new Blob([text], { type })
@@ -114,6 +117,12 @@ function getMindDirection(layout) {
   return MindElixir.LEFT
 }
 
+function clampSidebarWidth(value) {
+  const width = Number(value)
+  if (!Number.isFinite(width)) return DEFAULT_SIDEBAR_WIDTH
+  return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(width)))
+}
+
 function loadUiPrefs() {
   try {
     const parsed = JSON.parse(localStorage.getItem(UI_PREFS_KEY) || 'null')
@@ -122,6 +131,7 @@ function loadUiPrefs() {
         collapsedPanels: {},
         isLeftOpen: true,
         mindLayout: 'left',
+        sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
         skeletonId: DEFAULT_SKELETON,
       }
     }
@@ -133,6 +143,7 @@ function loadUiPrefs() {
           : {},
       isLeftOpen: typeof parsed.isLeftOpen === 'boolean' ? parsed.isLeftOpen : true,
       mindLayout: normalizeMapLayout(parsed.mindLayout),
+      sidebarWidth: clampSidebarWidth(parsed.sidebarWidth),
       skeletonId: normalizeThemeId(parsed.skeletonId),
     }
   } catch {
@@ -140,6 +151,7 @@ function loadUiPrefs() {
       collapsedPanels: {},
       isLeftOpen: true,
       mindLayout: 'left',
+      sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
       skeletonId: DEFAULT_SKELETON,
     }
   }
@@ -332,6 +344,7 @@ export default function App() {
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
   const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false)
   const [mindLayout, setMindLayout] = useState(initialUiPrefs.mindLayout)
+  const [sidebarWidth, setSidebarWidth] = useState(initialUiPrefs.sidebarWidth)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
   })
@@ -380,9 +393,10 @@ export default function App() {
       collapsedPanels,
       isLeftOpen,
       mindLayout,
+      sidebarWidth,
       skeletonId,
     })
-  }, [collapsedPanels, isLeftOpen, mindLayout, skeletonId])
+  }, [collapsedPanels, isLeftOpen, mindLayout, sidebarWidth, skeletonId])
 
   useEffect(() => {
     if (!isProjectMenuOpen) return undefined
@@ -912,6 +926,36 @@ export default function App() {
     return `${baseClass} ${collapsedPanels[panelId] ? 'panel-collapsed' : ''}`
   }
 
+  function startSidebarResize(event) {
+    if (!isLeftOpen) return
+    event.preventDefault()
+
+    const startX = event.clientX
+    const startWidth = sidebarWidth
+    const maxWidth = Math.min(
+      MAX_SIDEBAR_WIDTH,
+      Math.max(MIN_SIDEBAR_WIDTH, window.innerWidth - 360),
+    )
+
+    const handlePointerMove = (moveEvent) => {
+      const nextWidth = Math.min(
+        maxWidth,
+        Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX),
+      )
+      setSidebarWidth(Math.round(nextWidth))
+    }
+
+    const stopResize = () => {
+      document.body.classList.remove('is-resizing-sidebar')
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', stopResize)
+    }
+
+    document.body.classList.add('is-resizing-sidebar')
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', stopResize, { once: true })
+  }
+
   async function refreshMapList() {
     const nextMaps = await listMaps()
     setMaps(nextMaps)
@@ -1302,7 +1346,10 @@ export default function App() {
   }
 
   return (
-    <main className={`app-shell app-theme-${skeletonId} ${isLeftOpen ? '' : 'left-collapsed'}`}>
+    <main
+      className={`app-shell app-theme-${skeletonId} ${isLeftOpen ? '' : 'left-collapsed'}`}
+      style={{ '--sidebar-width': `${sidebarWidth}px` }}
+    >
       {showIntro && (
         <section className="intro-overlay" aria-label="Welcome">
           <div className="intro-grid" />
@@ -1691,6 +1738,12 @@ export default function App() {
             placeholder={apiProvider === 'gemini' ? 'Gemini model' : 'Groq model'}
           />
         </details>
+        <button
+          className="sidebar-resize-handle"
+          type="button"
+          aria-label="Resize left control panel"
+          onPointerDown={startSidebarResize}
+        />
       </aside>
 
       <section className={`workspace workspace-theme-${skeletonId}`}>
