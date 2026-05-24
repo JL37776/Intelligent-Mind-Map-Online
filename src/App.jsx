@@ -290,6 +290,7 @@ export default function App() {
   const autosaveTimerRef = useRef(null)
   const sourceSyncedFromMapRef = useRef(false)
   const projectMenuRef = useRef(null)
+  const recentMenuRef = useRef(null)
   const [source, setSource] = useState(starterOutline)
   const [sourceMode, setSourceMode] = useState('raw')
   const [autoUpdateMap, setAutoUpdateMap] = useState(true)
@@ -329,6 +330,7 @@ export default function App() {
   const [zoomPercent, setZoomPercent] = useState(100)
   const [collapsedPanels, setCollapsedPanels] = useState(initialUiPrefs.collapsedPanels)
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
+  const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false)
   const [mindLayout, setMindLayout] = useState(initialUiPrefs.mindLayout)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
@@ -404,6 +406,29 @@ export default function App() {
       document.removeEventListener('keydown', closeProjectMenu, true)
     }
   }, [isProjectMenuOpen])
+
+  useEffect(() => {
+    if (!isRecentMenuOpen) return undefined
+
+    const closeRecentMenu = (event) => {
+      if (event.key === 'Escape') {
+        setIsRecentMenuOpen(false)
+        return
+      }
+
+      if (event.type === 'pointerdown' && !recentMenuRef.current?.contains(event.target)) {
+        setIsRecentMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closeRecentMenu)
+    document.addEventListener('keydown', closeRecentMenu, true)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeRecentMenu)
+      document.removeEventListener('keydown', closeRecentMenu, true)
+    }
+  }, [isRecentMenuOpen])
 
   useEffect(() => {
     if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
@@ -1258,6 +1283,7 @@ export default function App() {
   function newMap() {
     const id = `map-${Date.now()}`
     setIsProjectMenuOpen(false)
+    setIsRecentMenuOpen(false)
     setActiveId(id)
     setLastSavedAt(null)
     setSource(starterOutline)
@@ -1268,6 +1294,11 @@ export default function App() {
   function runProjectCommand(command) {
     setIsProjectMenuOpen(false)
     command()
+  }
+
+  async function openRecentMap(id) {
+    setIsRecentMenuOpen(false)
+    await loadSavedMap(id)
   }
 
   return (
@@ -1313,32 +1344,43 @@ export default function App() {
               <ChevronDown size={15} />
             </span>
           </button>
-          <div className="map-list panel-body">
-            {maps.length === 0 ? (
-              <p className="empty-state">No recent projects yet.</p>
-            ) : (
-              maps.map((map) => (
-                <div
-                  className={`map-row ${map.id === activeId ? 'active' : ''}`}
-                  key={map.id}
-                >
-                  <button
-                    type="button"
-                    onClick={() => loadSavedMap(map.id)}
-                  >
-                    <span>{map.title}</span>
-                    <small>{formatSavedTime(map.updatedAt)}</small>
-                  </button>
-                  <button
-                    className="icon-button subtle"
-                    type="button"
-                    aria-label={`Delete local project: ${map.title}`}
-                    onClick={() => removeSavedMap(map.id)}
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))
+          <div className="saved-menu-anchor panel-body" ref={recentMenuRef}>
+            <button
+              className="saved-menu-trigger"
+              type="button"
+              onClick={() => setIsRecentMenuOpen((current) => !current)}
+              aria-expanded={isRecentMenuOpen}
+              aria-haspopup="menu"
+            >
+              <span>
+                <strong>{maps[0]?.title || 'No recent projects'}</strong>
+                <small>{maps[0] ? formatSavedTime(maps[0].updatedAt) : 'Save a map to see it here'}</small>
+              </span>
+              <ChevronDown size={16} />
+            </button>
+            {isRecentMenuOpen && (
+              <div className="saved-command-menu" aria-label="Recent projects" role="menu">
+                {maps.length === 0 ? (
+                  <p className="empty-state">No recent projects yet.</p>
+                ) : (
+                  maps.slice(0, 8).map((map) => (
+                    <div className={`saved-command-row ${map.id === activeId ? 'active' : ''}`} key={map.id}>
+                      <button type="button" onClick={() => openRecentMap(map.id)} role="menuitem">
+                        <span>{map.title}</span>
+                        <small>{formatSavedTime(map.updatedAt)}</small>
+                      </button>
+                      <button
+                        className="icon-button subtle"
+                        type="button"
+                        aria-label={`Delete local project: ${map.title}`}
+                        onClick={() => removeSavedMap(map.id)}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
         </section>
