@@ -344,6 +344,7 @@ export default function App() {
   const nodeRefineTargetIdRef = useRef(null)
   const promptPresetsRef = useRef(defaultPromptPresets)
   const bootstrappedRef = useRef(false)
+  const didMountLayoutRef = useRef(false)
   const dirtyRef = useRef(false)
   const autosaveTimerRef = useRef(null)
   const sourceSyncedFromMapRef = useRef(false)
@@ -497,18 +498,20 @@ export default function App() {
   useEffect(() => {
     if (!mindRef.current) return
     mindRef.current.refresh(getDisplayMindData(mindData, skeletonId))
-    window.requestAnimationFrame(() => {
-      const mind = mindRef.current
-      if (!mind) return
-      mind.scaleFit?.()
-      setZoomPercent(Math.round((mind.scaleVal || 1) * 100))
-      setStatus(
-        isOverviewMode
-          ? `Overview mode: ${overviewDepth} levels`
-          : 'Overview mode off',
-      )
-    })
+    fitMapAfterRender(
+      isOverviewMode
+        ? `Overview mode: ${overviewDepth} levels`
+        : 'Overview mode off',
+    )
   }, [isOverviewMode, overviewDepth])
+
+  useEffect(() => {
+    if (!didMountLayoutRef.current) {
+      didMountLayoutRef.current = true
+      return
+    }
+    fitMapAfterRender(isLeftOpen ? 'Sidebar opened' : 'Sidebar collapsed')
+  }, [isLeftOpen])
 
   useEffect(() => {
     if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
@@ -906,7 +909,11 @@ export default function App() {
     if (mindRef.current) {
       mindRef.current.changeTheme(getMindTheme(nextSkeletonId), false)
       mindRef.current.refresh(applyOverviewExpansion(normalized, isOverviewMode, overviewDepth))
-      if (options.center !== false) mindRef.current.toCenter()
+      if (options.fit) {
+        fitMapAfterRender(message)
+      } else if (options.center !== false) {
+        mindRef.current.toCenter()
+      }
     }
     setStatus(message)
   }
@@ -934,6 +941,22 @@ export default function App() {
   function centerMap() {
     mindRef.current?.toCenter()
     setStatus('Centered')
+  }
+
+  function fitMapAfterRender(message = 'Fit to view') {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const mind = mindRef.current
+        if (!mind) return
+        if (mind.scaleFit) {
+          mind.scaleFit()
+        } else {
+          mind.toCenter()
+        }
+        setZoomPercent(Math.round((mind.scaleVal || 1) * 100))
+        setStatus(message)
+      })
+    })
   }
 
   function showToast(type, title, message, persistent = false) {
@@ -1026,6 +1049,7 @@ export default function App() {
       document.body.classList.remove('is-resizing-sidebar')
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', stopResize)
+      fitMapAfterRender('Sidebar resized')
     }
 
     document.body.classList.add('is-resizing-sidebar')
@@ -1056,6 +1080,7 @@ export default function App() {
         preferred.mindData || outlineToMindData(preferred.outline || starterOutline),
         'Restored from local cache',
         preferredSkeletonId,
+        { fit: true },
       )
     }
 
@@ -1094,7 +1119,7 @@ export default function App() {
       outlineToMindData(source),
       styleSnapshot,
     )
-    refreshMind(next, 'Generated from outline')
+    refreshMind(next, 'Generated from outline', skeletonId, { fit: true })
   }
 
   async function refineWithGroq() {
@@ -1124,7 +1149,7 @@ export default function App() {
       )
       setOutline(refinedOutline)
       setSource(refinedOutline)
-      refreshMind(next, `Refined with ${apiProvider}`)
+      refreshMind(next, `Refined with ${apiProvider}`, skeletonId, { fit: true })
       showToast('success', 'Full map refined', activeTitle)
     } catch (error) {
       const message = error.message || 'Full map refine failed'
@@ -1182,7 +1207,7 @@ export default function App() {
       }
       const next = structuredClone(current)
       replaceNodeById(next.nodeData, targetId, refinedNode)
-      refreshMind(next, `AI refined node: ${target.topic}`, skeletonId, { center: false })
+      refreshMind(next, `AI refined node: ${target.topic}`, skeletonId, { fit: true })
       restoreNodeSelection(targetId)
       setNodeRefineTarget(target.topic)
       nodeRefineTargetIdRef.current = targetId
@@ -1224,7 +1249,7 @@ export default function App() {
     setLastSavedAt(record.updatedAt || null)
     dirtyRef.current = false
     saveActiveProjectId(record.id)
-    refreshMind(record.mindData, 'Loaded', recordSkeletonId)
+    refreshMind(record.mindData, 'Loaded', recordSkeletonId, { fit: true })
   }
 
   async function removeSavedMap(id) {
@@ -1265,7 +1290,7 @@ export default function App() {
     event.target.value = ''
     if (!file) return
     const text = await file.text()
-    refreshMind(JSON.parse(text), 'JSON imported')
+    refreshMind(JSON.parse(text), 'JSON imported', skeletonId, { fit: true })
   }
 
   async function applyImageFileToSelectedNode(file, message = 'Image inserted') {
@@ -1287,7 +1312,7 @@ export default function App() {
       }
 
       target.image = await imageFileToNodeImage(file)
-      refreshMind(current, message)
+      refreshMind(current, message, skeletonId, { fit: true })
       selectedNodeIdRef.current = selectedId
     } catch (error) {
       setStatus(error.message || 'Image insert failed')
@@ -1303,7 +1328,7 @@ export default function App() {
   function applySkeleton(nextSkeletonId) {
     setSkeletonId(nextSkeletonId)
     const current = normalizeMindData(mindRef.current?.getData() || mindData)
-    refreshMind(current, `${skeletonPresets[nextSkeletonId].label} skeleton applied`, nextSkeletonId)
+    refreshMind(current, `${skeletonPresets[nextSkeletonId].label} skeleton applied`, nextSkeletonId, { fit: true })
   }
 
   function markSelectedNode(emphasis) {
@@ -1409,7 +1434,7 @@ export default function App() {
     setLastSavedAt(null)
     setSource(starterOutline)
     saveActiveProjectId(id)
-    refreshMind(outlineToMindData(starterOutline), 'New map', skeletonId)
+    refreshMind(outlineToMindData(starterOutline), 'New map', skeletonId, { fit: true })
   }
 
   function runProjectCommand(command) {
