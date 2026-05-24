@@ -58,6 +58,7 @@ const DEFAULT_SKELETON = 'bright'
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'
 const APP_UPDATE_NOTES = Array.isArray(__APP_UPDATE_NOTES__) ? __APP_UPDATE_NOTES__ : []
 const SEEN_VERSION_KEY = 'intelligent-ai-mind-map-seen-version'
+const UI_PREFS_KEY = 'intelligent-ai-mind-map-ui-prefs'
 const providerDefaults = {
   groq: 'llama-3.3-70b-versatile',
   gemini: 'gemini-2.5-flash',
@@ -101,6 +102,51 @@ function normalizeThemeId(id) {
   if (id === 'contrast') return 'mono'
   if (id === 'product' || id === 'study' || id === 'executive') return 'colorful'
   return DEFAULT_SKELETON
+}
+
+function normalizeMapLayout(layout) {
+  return ['left', 'right', 'side'].includes(layout) ? layout : 'left'
+}
+
+function getMindDirection(layout) {
+  if (layout === 'right') return MindElixir.RIGHT
+  if (layout === 'side') return MindElixir.SIDE
+  return MindElixir.LEFT
+}
+
+function loadUiPrefs() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(UI_PREFS_KEY) || 'null')
+    if (!parsed || typeof parsed !== 'object') {
+      return {
+        collapsedPanels: {},
+        isLeftOpen: true,
+        mindLayout: 'left',
+        skeletonId: DEFAULT_SKELETON,
+      }
+    }
+
+    return {
+      collapsedPanels:
+        parsed.collapsedPanels && typeof parsed.collapsedPanels === 'object'
+          ? parsed.collapsedPanels
+          : {},
+      isLeftOpen: typeof parsed.isLeftOpen === 'boolean' ? parsed.isLeftOpen : true,
+      mindLayout: normalizeMapLayout(parsed.mindLayout),
+      skeletonId: normalizeThemeId(parsed.skeletonId),
+    }
+  } catch {
+    return {
+      collapsedPanels: {},
+      isLeftOpen: true,
+      mindLayout: 'left',
+      skeletonId: DEFAULT_SKELETON,
+    }
+  }
+}
+
+function saveUiPrefs(prefs) {
+  localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs))
 }
 
 function formatSavedTime(value) {
@@ -231,6 +277,7 @@ async function imageFileToNodeImage(file) {
 
 export default function App() {
   const initialApiSettings = useMemo(loadApiSettings, [])
+  const initialUiPrefs = useMemo(loadUiPrefs, [])
   const mapRef = useRef(null)
   const mindRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -242,12 +289,13 @@ export default function App() {
   const dirtyRef = useRef(false)
   const autosaveTimerRef = useRef(null)
   const sourceSyncedFromMapRef = useRef(false)
+  const projectOpenRef = useRef(null)
   const [source, setSource] = useState(starterOutline)
   const [sourceMode, setSourceMode] = useState('raw')
   const [autoUpdateMap, setAutoUpdateMap] = useState(true)
   const [outline, setOutline] = useState(starterOutline)
-  const [mindData, setMindData] = useState(initialData)
-  const [skeletonId, setSkeletonId] = useState(DEFAULT_SKELETON)
+  const [mindData, setMindData] = useState(() => applySkeletonPreset(initialData, initialUiPrefs.skeletonId))
+  const [skeletonId, setSkeletonId] = useState(initialUiPrefs.skeletonId)
   const [apiProvider, setApiProvider] = useState(initialApiSettings.provider || 'groq')
   const [apiKey, setApiKey] = useState(
     initialApiSettings.providers?.[initialApiSettings.provider || 'groq']?.key || '',
@@ -274,13 +322,14 @@ export default function App() {
   const [activeId, setActiveId] = useState('demo-map')
   const [selectedTopic, setSelectedTopic] = useState('No node selected')
   const [status, setStatus] = useState('Ready')
-  const [isLeftOpen, setIsLeftOpen] = useState(true)
+  const [isLeftOpen, setIsLeftOpen] = useState(initialUiPrefs.isLeftOpen)
   const [isBusy, setIsBusy] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const [showUpdateNotice, setShowUpdateNotice] = useState(false)
   const [zoomPercent, setZoomPercent] = useState(100)
-  const [collapsedPanels, setCollapsedPanels] = useState({})
+  const [collapsedPanels, setCollapsedPanels] = useState(initialUiPrefs.collapsedPanels)
   const [isProjectOpenListVisible, setIsProjectOpenListVisible] = useState(false)
+  const [mindLayout, setMindLayout] = useState(initialUiPrefs.mindLayout)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
   })
@@ -323,6 +372,38 @@ export default function App() {
     const seenVersion = localStorage.getItem(SEEN_VERSION_KEY)
     if (seenVersion !== APP_VERSION) setShowUpdateNotice(true)
   }, [])
+
+  useEffect(() => {
+    saveUiPrefs({
+      collapsedPanels,
+      isLeftOpen,
+      mindLayout,
+      skeletonId,
+    })
+  }, [collapsedPanels, isLeftOpen, mindLayout, skeletonId])
+
+  useEffect(() => {
+    if (!isProjectOpenListVisible) return undefined
+
+    const closeProjectOpenList = (event) => {
+      if (event.key === 'Escape') {
+        setIsProjectOpenListVisible(false)
+        return
+      }
+
+      if (event.type === 'pointerdown' && !projectOpenRef.current?.contains(event.target)) {
+        setIsProjectOpenListVisible(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closeProjectOpenList)
+    document.addEventListener('keydown', closeProjectOpenList, true)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeProjectOpenList)
+      document.removeEventListener('keydown', closeProjectOpenList, true)
+    }
+  }, [isProjectOpenListVisible])
 
   useEffect(() => {
     if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
@@ -507,7 +588,7 @@ export default function App() {
 
     const mind = new MindElixir({
       el: mapRef.current,
-      direction: MindElixir.LEFT,
+      direction: getMindDirection(mindLayout),
       draggable: true,
       contextMenu: {
         focus: true,
@@ -555,6 +636,30 @@ export default function App() {
     })
 
     mind.init(mindData)
+    const originalInitLeft = mind.initLeft?.bind(mind)
+    const originalInitRight = mind.initRight?.bind(mind)
+    const originalInitSide = mind.initSide?.bind(mind)
+    if (originalInitLeft) {
+      mind.initLeft = (...args) => {
+        const result = originalInitLeft(...args)
+        setMindLayout('left')
+        return result
+      }
+    }
+    if (originalInitRight) {
+      mind.initRight = (...args) => {
+        const result = originalInitRight(...args)
+        setMindLayout('right')
+        return result
+      }
+    }
+    if (originalInitSide) {
+      mind.initSide = (...args) => {
+        const result = originalInitSide(...args)
+        setMindLayout('side')
+        return result
+      }
+    }
     mind.bus.addListener('selectNode', (node) => {
       const nodeObj = node?.nodeObj || node
       selectedNodeIdRef.current = nodeObj?.id || null
@@ -1125,11 +1230,12 @@ export default function App() {
 
   function newMap() {
     const id = `map-${Date.now()}`
+    setIsProjectOpenListVisible(false)
     setActiveId(id)
     setLastSavedAt(null)
     setSource(starterOutline)
     saveActiveProjectId(id)
-    refreshMind(initialData, 'New map')
+    refreshMind(outlineToMindData(starterOutline), 'New map', skeletonId)
   }
 
   async function openMapFromProjectList(id) {
@@ -1223,46 +1329,49 @@ export default function App() {
               <Save size={16} />
               Save
             </button>
-            <button
-              type="button"
-              onClick={() => setIsProjectOpenListVisible((current) => !current)}
-              data-tooltip="Show local projects to open"
-              aria-expanded={isProjectOpenListVisible}
-            >
-              <FileUp size={16} />
-              Open
-            </button>
+            <div className="project-open-anchor" ref={projectOpenRef}>
+              <button
+                type="button"
+                onClick={() => setIsProjectOpenListVisible((current) => !current)}
+                data-tooltip="Show local projects to open"
+                aria-expanded={isProjectOpenListVisible}
+                aria-haspopup="menu"
+              >
+                <FileUp size={16} />
+                Open
+              </button>
+              {isProjectOpenListVisible && (
+                <div className="project-open-list" aria-label="Open local project" role="menu">
+                  {maps.length === 0 ? (
+                    <p className="empty-state">No recent projects yet.</p>
+                  ) : (
+                    maps.map((map) => (
+                      <div
+                        className={`project-open-row ${map.id === activeId ? 'active' : ''}`}
+                        key={map.id}
+                      >
+                        <button type="button" onClick={() => openMapFromProjectList(map.id)} role="menuitem">
+                          <span>{map.title}</span>
+                          <small>{formatSavedTime(map.updatedAt)}</small>
+                        </button>
+                        <button
+                          className="icon-button subtle"
+                          type="button"
+                          aria-label={`Delete local project: ${map.title}`}
+                          onClick={() => removeSavedMap(map.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
             <button type="button" onClick={newMap} data-tooltip="Create a new mind map project">
               <Plus size={16} />
               Add
             </button>
-            {isProjectOpenListVisible && (
-              <div className="project-open-list" aria-label="Open local project">
-                {maps.length === 0 ? (
-                  <p className="empty-state">No recent projects yet.</p>
-                ) : (
-                  maps.map((map) => (
-                    <div
-                      className={`project-open-row ${map.id === activeId ? 'active' : ''}`}
-                      key={map.id}
-                    >
-                      <button type="button" onClick={() => openMapFromProjectList(map.id)}>
-                        <span>{map.title}</span>
-                        <small>{formatSavedTime(map.updatedAt)}</small>
-                      </button>
-                      <button
-                        className="icon-button subtle"
-                        type="button"
-                        aria-label={`Delete local project: ${map.title}`}
-                        onClick={() => removeSavedMap(map.id)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
           </div>
         </section>
 
