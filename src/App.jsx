@@ -497,12 +497,17 @@ export default function App() {
   useEffect(() => {
     if (!mindRef.current) return
     mindRef.current.refresh(getDisplayMindData(mindData, skeletonId))
-    mindRef.current.toCenter()
-    setStatus(
-      isOverviewMode
-        ? `Overview mode: ${overviewDepth} levels`
-        : 'Overview mode off',
-    )
+    window.requestAnimationFrame(() => {
+      const mind = mindRef.current
+      if (!mind) return
+      mind.scaleFit?.()
+      setZoomPercent(Math.round((mind.scaleVal || 1) * 100))
+      setStatus(
+        isOverviewMode
+          ? `Overview mode: ${overviewDepth} levels`
+          : 'Overview mode off',
+      )
+    })
   }, [isOverviewMode, overviewDepth])
 
   useEffect(() => {
