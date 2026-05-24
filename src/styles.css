@@ -1177,6 +1177,7 @@ select {
 
 .workspace-theme-mono .toolbar button,
 .workspace-theme-mono .toolbar select,
+.workspace-theme-mono .overview-controls,
 .workspace-theme-mono .theme-quick-switch,
 .workspace-theme-mono .segmented-control {
   background: #0f172a;
@@ -1185,9 +1186,15 @@ select {
 }
 
 .workspace-theme-mono .theme-quick-switch button,
+.workspace-theme-mono .overview-toggle,
 .workspace-theme-mono .segmented-control button {
   background: #0f172a;
   color: #bfdbfe;
+}
+
+.workspace-theme-mono .overview-toggle.active {
+  background: #38bdf8;
+  color: #082f49;
 }
 
 .workspace-theme-mono .theme-quick-switch button.active {
@@ -1225,6 +1232,52 @@ select {
 
 .toolbar-actions button {
   flex: 0 0 auto;
+}
+
+.overview-controls {
+  align-items: center;
+  background: #f1f5f9;
+  border: 1px solid #cfd6df;
+  border-radius: 8px;
+  display: flex;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.overview-toggle {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 7px;
+  height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.overview-toggle input {
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.overview-toggle.active {
+  background: #dcecff;
+  color: #123d75;
+  font-weight: 700;
+}
+
+.overview-controls select {
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #cfd6df;
+  border-radius: 0;
+  height: 34px;
+  min-width: 98px;
+}
+
+.overview-controls select:disabled {
+  color: #94a3b8;
+  opacity: 0.72;
 }
 
 .style-controls {

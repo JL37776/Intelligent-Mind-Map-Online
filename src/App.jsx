@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Crosshair,
+  ListTree,
   Maximize2,
   ZoomIn,
   ZoomOut,
@@ -76,6 +77,9 @@ const CONTEXT_MENU_MARGIN = 14
 const DEFAULT_SIDEBAR_WIDTH = 420
 const MIN_SIDEBAR_WIDTH = 320
 const MAX_SIDEBAR_WIDTH = 640
+const DEFAULT_OVERVIEW_DEPTH = 3
+const MIN_OVERVIEW_DEPTH = 1
+const MAX_OVERVIEW_DEPTH = 6
 
 function downloadText(filename, text, type = 'application/json') {
   const blob = new Blob([text], { type })
@@ -123,6 +127,42 @@ function clampSidebarWidth(value) {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(width)))
 }
 
+function normalizeOverviewDepth(value) {
+  const depth = Number(value)
+  if (!Number.isFinite(depth)) return DEFAULT_OVERVIEW_DEPTH
+  return Math.min(MAX_OVERVIEW_DEPTH, Math.max(MIN_OVERVIEW_DEPTH, Math.round(depth)))
+}
+
+function stripExpandedState(data) {
+  const next = structuredClone(normalizeMindData(data))
+  const walk = (node) => {
+    if (!node) return
+    delete node.expanded
+    ;(node.children || []).forEach(walk)
+  }
+
+  walk(next.nodeData)
+  return next
+}
+
+function applyOverviewExpansion(data, isOverviewMode, depth) {
+  const next = structuredClone(normalizeMindData(data))
+  const normalizedDepth = normalizeOverviewDepth(depth)
+
+  const walk = (node, level) => {
+    if (!node) return
+    if (node.children?.length) {
+      node.expanded = !isOverviewMode || level < normalizedDepth
+      node.children.forEach((child) => walk(child, level + 1))
+    } else {
+      delete node.expanded
+    }
+  }
+
+  walk(next.nodeData, 1)
+  return next
+}
+
 function loadUiPrefs() {
   try {
     const parsed = JSON.parse(localStorage.getItem(UI_PREFS_KEY) || 'null')
@@ -131,6 +171,8 @@ function loadUiPrefs() {
         collapsedPanels: {},
         isLeftOpen: true,
         mindLayout: 'left',
+        overviewDepth: DEFAULT_OVERVIEW_DEPTH,
+        overviewMode: true,
         sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
         skeletonId: DEFAULT_SKELETON,
       }
@@ -143,6 +185,8 @@ function loadUiPrefs() {
           : {},
       isLeftOpen: typeof parsed.isLeftOpen === 'boolean' ? parsed.isLeftOpen : true,
       mindLayout: normalizeMapLayout(parsed.mindLayout),
+      overviewDepth: normalizeOverviewDepth(parsed.overviewDepth),
+      overviewMode: typeof parsed.overviewMode === 'boolean' ? parsed.overviewMode : true,
       sidebarWidth: clampSidebarWidth(parsed.sidebarWidth),
       skeletonId: normalizeThemeId(parsed.skeletonId),
     }
@@ -151,6 +195,8 @@ function loadUiPrefs() {
       collapsedPanels: {},
       isLeftOpen: true,
       mindLayout: 'left',
+      overviewDepth: DEFAULT_OVERVIEW_DEPTH,
+      overviewMode: true,
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
       skeletonId: DEFAULT_SKELETON,
     }
@@ -344,6 +390,8 @@ export default function App() {
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false)
   const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false)
   const [mindLayout, setMindLayout] = useState(initialUiPrefs.mindLayout)
+  const [isOverviewMode, setIsOverviewMode] = useState(initialUiPrefs.overviewMode)
+  const [overviewDepth, setOverviewDepth] = useState(initialUiPrefs.overviewDepth)
   const [sidebarWidth, setSidebarWidth] = useState(initialUiPrefs.sidebarWidth)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
@@ -393,10 +441,12 @@ export default function App() {
       collapsedPanels,
       isLeftOpen,
       mindLayout,
+      overviewDepth,
+      overviewMode: isOverviewMode,
       sidebarWidth,
       skeletonId,
     })
-  }, [collapsedPanels, isLeftOpen, mindLayout, sidebarWidth, skeletonId])
+  }, [collapsedPanels, isLeftOpen, mindLayout, isOverviewMode, overviewDepth, sidebarWidth, skeletonId])
 
   useEffect(() => {
     if (!isProjectMenuOpen) return undefined
@@ -443,6 +493,17 @@ export default function App() {
       document.removeEventListener('keydown', closeRecentMenu, true)
     }
   }, [isRecentMenuOpen])
+
+  useEffect(() => {
+    if (!mindRef.current) return
+    mindRef.current.refresh(getDisplayMindData(mindData, skeletonId))
+    mindRef.current.toCenter()
+    setStatus(
+      isOverviewMode
+        ? `Overview mode: ${overviewDepth} levels`
+        : 'Overview mode off',
+    )
+  }, [isOverviewMode, overviewDepth])
 
   useEffect(() => {
     if (!bootstrappedRef.current || sourceSyncedFromMapRef.current) {
@@ -701,7 +762,7 @@ export default function App() {
       },
     })
 
-    mind.init(mindData)
+    mind.init(getDisplayMindData(mindData, skeletonId))
     const originalInitLeft = mind.initLeft?.bind(mind)
     const originalInitRight = mind.initRight?.bind(mind)
     const originalInitSide = mind.initSide?.bind(mind)
@@ -768,10 +829,7 @@ export default function App() {
     window.clearTimeout(queueSyncFromMind.timer)
     queueSyncFromMind.timer = window.setTimeout(() => {
       if (!mindRef.current) return
-      const next = applySkeletonPreset(
-        normalizeMindData(mindRef.current.getData()),
-        skeletonId,
-      )
+      const next = getPersistentMindData(mindRef.current.getData(), skeletonId)
       const nextOutline = mindDataToOutline(next)
       setMindData(next)
       setOutline(nextOutline)
@@ -832,10 +890,7 @@ export default function App() {
     nextSkeletonId = skeletonId,
     options = {},
   ) {
-    const normalized = applySkeletonPreset(
-      normalizeMindData(nextData),
-      nextSkeletonId,
-    )
+    const normalized = getPersistentMindData(nextData, nextSkeletonId)
     const nextOutline = mindDataToOutline(normalized)
     setMindData(normalized)
     setOutline(nextOutline)
@@ -845,7 +900,7 @@ export default function App() {
     }
     if (mindRef.current) {
       mindRef.current.changeTheme(getMindTheme(nextSkeletonId), false)
-      mindRef.current.refresh(normalized)
+      mindRef.current.refresh(applyOverviewExpansion(normalized, isOverviewMode, overviewDepth))
       if (options.center !== false) mindRef.current.toCenter()
     }
     setStatus(message)
@@ -926,6 +981,23 @@ export default function App() {
     return `${baseClass} ${collapsedPanels[panelId] ? 'panel-collapsed' : ''}`
   }
 
+  function getPersistentMindData(data, nextSkeletonId = skeletonId) {
+    return stripExpandedState(
+      applySkeletonPreset(
+        normalizeMindData(data),
+        nextSkeletonId,
+      ),
+    )
+  }
+
+  function getDisplayMindData(data, nextSkeletonId = skeletonId) {
+    return applyOverviewExpansion(
+      getPersistentMindData(data, nextSkeletonId),
+      isOverviewMode,
+      overviewDepth,
+    )
+  }
+
   function startSidebarResize(event) {
     if (!isLeftOpen) return
     event.preventDefault()
@@ -988,7 +1060,7 @@ export default function App() {
   }
 
   function buildCurrentRecord() {
-    const current = normalizeMindData(mindRef.current?.getData() || mindData)
+    const current = getPersistentMindData(mindRef.current?.getData() || mindData)
     return {
       id: activeId,
       title: titleFromData(current),
@@ -1172,13 +1244,13 @@ export default function App() {
   }
 
   function exportJson() {
-    const current = normalizeMindData(mindRef.current?.getData() || mindData)
+    const current = getPersistentMindData(mindRef.current?.getData() || mindData)
     downloadText(`${activeTitle}.json`, JSON.stringify(current, null, 2))
     setStatus('JSON exported')
   }
 
   function exportMarkdown() {
-    const current = normalizeMindData(mindRef.current?.getData() || mindData)
+    const current = getPersistentMindData(mindRef.current?.getData() || mindData)
     downloadText(`${activeTitle}.md`, mindDataToOutline(current), 'text/markdown')
     setStatus('Markdown exported')
   }
@@ -1762,6 +1834,32 @@ export default function App() {
           <div className="title-block">
             <strong>{activeTitle}</strong>
             <span>{selectedTopic}</span>
+          </div>
+          <div className="overview-controls" aria-label="Overview mode">
+            <label
+              className={`overview-toggle ${isOverviewMode ? 'active' : ''}`}
+              data-tooltip="Toggle overview mode for the current mind map"
+            >
+              <input
+                checked={isOverviewMode}
+                onChange={(event) => setIsOverviewMode(event.target.checked)}
+                type="checkbox"
+              />
+              <ListTree size={16} />
+              <span>Overview</span>
+            </label>
+            <select
+              aria-label="Overview expanded levels"
+              disabled={!isOverviewMode}
+              value={overviewDepth}
+              onChange={(event) => setOverviewDepth(normalizeOverviewDepth(event.target.value))}
+            >
+              {Array.from({ length: MAX_OVERVIEW_DEPTH }, (_, index) => index + 1).map((level) => (
+                <option key={level} value={level}>
+                  {level} levels
+                </option>
+              ))}
+            </select>
           </div>
           <div className="style-controls">
             <div className="theme-quick-switch" aria-label="Quick theme">
