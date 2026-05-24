@@ -280,6 +280,7 @@ export default function App() {
   const [showUpdateNotice, setShowUpdateNotice] = useState(false)
   const [zoomPercent, setZoomPercent] = useState(100)
   const [collapsedPanels, setCollapsedPanels] = useState({})
+  const [isProjectOpenListVisible, setIsProjectOpenListVisible] = useState(false)
   const [showIntro, setShowIntro] = useState(() => {
     return sessionStorage.getItem('intelligent-ai-mind-map-intro') !== 'seen'
   })
@@ -1131,13 +1132,9 @@ export default function App() {
     refreshMind(initialData, 'New map')
   }
 
-  async function openLatestMap() {
-    const latest = maps[0]
-    if (!latest) {
-      setStatus('No recent project to open')
-      return
-    }
-    await loadSavedMap(latest.id)
+  async function openMapFromProjectList(id) {
+    await loadSavedMap(id)
+    setIsProjectOpenListVisible(false)
   }
 
   return (
@@ -1226,7 +1223,12 @@ export default function App() {
               <Save size={16} />
               Save
             </button>
-            <button type="button" onClick={openLatestMap} data-tooltip="Open the most recent local project">
+            <button
+              type="button"
+              onClick={() => setIsProjectOpenListVisible((current) => !current)}
+              data-tooltip="Show local projects to open"
+              aria-expanded={isProjectOpenListVisible}
+            >
               <FileUp size={16} />
               Open
             </button>
@@ -1234,6 +1236,33 @@ export default function App() {
               <Plus size={16} />
               Add
             </button>
+            {isProjectOpenListVisible && (
+              <div className="project-open-list" aria-label="Open local project">
+                {maps.length === 0 ? (
+                  <p className="empty-state">No recent projects yet.</p>
+                ) : (
+                  maps.map((map) => (
+                    <div
+                      className={`project-open-row ${map.id === activeId ? 'active' : ''}`}
+                      key={map.id}
+                    >
+                      <button type="button" onClick={() => openMapFromProjectList(map.id)}>
+                        <span>{map.title}</span>
+                        <small>{formatSavedTime(map.updatedAt)}</small>
+                      </button>
+                      <button
+                        className="icon-button subtle"
+                        type="button"
+                        aria-label={`Delete local project: ${map.title}`}
+                        onClick={() => removeSavedMap(map.id)}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </section>
 
