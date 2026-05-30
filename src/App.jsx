@@ -226,6 +226,165 @@ function getSelectedNodeId(mind, fallbackId) {
   return getSelectedNodeObject(mind)?.id || fallbackId || null
 }
 
+function safeFindMindElement(mind, nodeId) {
+  if (!mind || !nodeId) return null
+  try {
+    return mind.findEle(nodeId)
+  } catch {
+    return null
+  }
+}
+
+function getMindRootTopic(mind) {
+  return mind?.map?.querySelector('me-root > me-tpc') || safeFindMindElement(mind, mind?.nodeData?.id)
+}
+
+function getCurrentMindTopic(mind, fallbackId) {
+  const current = mind?.currentNode || mind?.currentNodes?.[0]
+  if (current?.isConnected) return current
+  return safeFindMindElement(mind, fallbackId) || getMindRootTopic(mind)
+}
+
+function isRootTopic(topic) {
+  return !topic?.nodeObj?.parent
+}
+
+function getTopicFromWrapper(wrapper) {
+  return wrapper?.firstElementChild?.firstElementChild || null
+}
+
+function getWrapperFromTopic(topic) {
+  const wrapper = topic?.parentElement?.parentElement
+  return wrapper?.tagName === 'ME-WRAPPER' ? wrapper : null
+}
+
+function getSiblingTopic(topic, direction) {
+  const wrapper = getWrapperFromTopic(topic)
+  const sibling =
+    direction === 'previous' ? wrapper?.previousElementSibling : wrapper?.nextElementSibling
+  return getTopicFromWrapper(sibling)
+}
+
+function getParentTopic(mind, topic) {
+  const parentId = topic?.nodeObj?.parent?.id
+  return safeFindMindElement(mind, parentId)
+}
+
+function getRootSideTopic(mind, side) {
+  const topics = Array.from(
+    mind?.map?.querySelectorAll(`.${side}>me-wrapper>me-parent>me-tpc`) || [],
+  )
+  return topics[Math.ceil(topics.length / 2) - 1] || null
+}
+
+function getFirstRootChildTopic(mind) {
+  return (
+    mind?.map?.querySelector('me-main > me-wrapper > me-parent > me-tpc') ||
+    getRootSideTopic(mind, 'lhs') ||
+    getRootSideTopic(mind, 'rhs')
+  )
+}
+
+function getLastRootChildTopic(mind) {
+  const topics = Array.from(
+    mind?.map?.querySelectorAll('me-main > me-wrapper > me-parent > me-tpc') || [],
+  )
+  return topics[topics.length - 1] || null
+}
+
+function getFirstChildTopic(mind, topic) {
+  if (!topic) return null
+  if (isRootTopic(topic)) return getFirstRootChildTopic(mind)
+
+  const children = topic.parentElement?.nextElementSibling
+  if (children?.tagName !== 'ME-CHILDREN') return null
+  return getTopicFromWrapper(children.firstElementChild)
+}
+
+function getLastChildTopic(mind, topic) {
+  if (!topic) return null
+  if (isRootTopic(topic)) return getLastRootChildTopic(mind)
+
+  const children = topic.parentElement?.nextElementSibling
+  if (children?.tagName !== 'ME-CHILDREN') return null
+  return getTopicFromWrapper(children.lastElementChild)
+}
+
+function getDeepestVisibleTopic(mind, topic) {
+  let current = topic
+  while (current) {
+    const lastChild = getLastChildTopic(mind, current)
+    if (!lastChild) return current
+    current = lastChild
+  }
+  return topic
+}
+
+function getNextAncestorSiblingTopic(mind, topic) {
+  let ancestor = getParentTopic(mind, topic)
+  while (ancestor && !isRootTopic(ancestor)) {
+    const sibling = getSiblingTopic(ancestor, 'next')
+    if (sibling) return sibling
+    ancestor = getParentTopic(mind, ancestor)
+  }
+  return null
+}
+
+function getVerticalNavigationTopic(mind, topic, direction) {
+  if (isRootTopic(topic)) {
+    return direction === 'previous' ? getLastRootChildTopic(mind) : getFirstRootChildTopic(mind)
+  }
+
+  if (direction === 'previous') {
+    const sibling = getSiblingTopic(topic, 'previous')
+    return sibling ? getDeepestVisibleTopic(mind, sibling) : getParentTopic(mind, topic)
+  }
+
+  return getSiblingTopic(topic, 'next') || getNextAncestorSiblingTopic(mind, topic)
+}
+
+function getTopicSide(topic) {
+  const main = topic?.closest?.('me-main')
+  if (main?.classList.contains('lhs')) return 'lhs'
+  if (main?.classList.contains('rhs')) return 'rhs'
+  return null
+}
+
+function getHorizontalNavigationTopic(mind, topic, direction) {
+  const side = direction === 'left' ? 'lhs' : 'rhs'
+  if (isRootTopic(topic)) return getRootSideTopic(mind, side)
+
+  const currentSide = getTopicSide(topic)
+  const isMovingOutward =
+    (direction === 'left' && currentSide === 'lhs') ||
+    (direction === 'right' && currentSide === 'rhs')
+
+  if (isMovingOutward) {
+    return getFirstChildTopic(mind, topic) || getNextAncestorSiblingTopic(mind, topic)
+  }
+
+  return getParentTopic(mind, topic)
+}
+
+function centerMindTopic(mind, topic) {
+  window.requestAnimationFrame(() => {
+    const target = topic?.isConnected ? topic : safeFindMindElement(mind, topic?.nodeObj?.id)
+    const container = mind?.container
+    if (!target || !container) return
+
+    const targetRect = target.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+    const dx =
+      targetRect.left + targetRect.width / 2 - (containerRect.left + containerRect.width / 2)
+    const dy =
+      targetRect.top + targetRect.height / 2 - (containerRect.top + containerRect.height / 2)
+
+    if (Number.isFinite(dx) && Number.isFinite(dy)) {
+      mind.move(-dx, -dy, true)
+    }
+  })
+}
+
 function findNodeById(node, id) {
   if (!node || !id) return null
   if (node.id === id) return node
@@ -718,6 +877,74 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
+  function selectAndCenterMindTopic(topic) {
+    const mind = mindRef.current
+    if (!mind || !topic) {
+      const current = getCurrentMindTopic(mind, selectedNodeIdRef.current)
+      if (current) centerMindTopic(mind, current)
+      return
+    }
+
+    mind.selectNode(topic)
+    centerMindTopic(mind, topic)
+
+    const nodeObj = topic.nodeObj
+    if (!nodeObj) return
+    selectedNodeIdRef.current = nodeObj.id || selectedNodeIdRef.current
+    nodeRefineTargetIdRef.current = nodeObj.id || nodeRefineTargetIdRef.current
+    setSelectedTopic(nodeObj.topic || 'No node selected')
+    setNodeRefineTarget(nodeObj.topic || 'No node selected')
+  }
+
+  function centerCurrentMindTopic() {
+    const mind = mindRef.current
+    const current = getCurrentMindTopic(mind, selectedNodeIdRef.current)
+    if (mind && current) centerMindTopic(mind, current)
+  }
+
+  function handleMindArrowKey(event, direction) {
+    const mind = mindRef.current
+    if (!mind) return
+
+    if (event.altKey && direction === 'up') {
+      mind.moveUpNode()
+      centerCurrentMindTopic()
+      return
+    }
+    if (event.altKey && direction === 'down') {
+      mind.moveDownNode()
+      centerCurrentMindTopic()
+      return
+    }
+    if ((event.ctrlKey || event.metaKey) && direction === 'up') {
+      mind.initSide()
+      centerCurrentMindTopic()
+      return
+    }
+    if ((event.ctrlKey || event.metaKey) && direction === 'left') {
+      mind.initLeft()
+      centerCurrentMindTopic()
+      return
+    }
+    if ((event.ctrlKey || event.metaKey) && direction === 'right') {
+      mind.initRight()
+      centerCurrentMindTopic()
+      return
+    }
+
+    const current = getCurrentMindTopic(mind, selectedNodeIdRef.current)
+    if (!current) return
+
+    const target =
+      direction === 'up'
+        ? getVerticalNavigationTopic(mind, current, 'previous')
+        : direction === 'down'
+          ? getVerticalNavigationTopic(mind, current, 'next')
+          : getHorizontalNavigationTopic(mind, current, direction)
+
+    selectAndCenterMindTopic(target || current)
+  }
+
   useEffect(() => {
     if (!mapRef.current || mindRef.current) return
 
@@ -740,7 +967,12 @@ export default function App() {
       },
       toolBar: true,
       nodeMenu: true,
-      keypress: true,
+      keypress: {
+        ArrowUp: (event) => handleMindArrowKey(event, 'up'),
+        ArrowDown: (event) => handleMindArrowKey(event, 'down'),
+        ArrowLeft: (event) => handleMindArrowKey(event, 'left'),
+        ArrowRight: (event) => handleMindArrowKey(event, 'right'),
+      },
       locale: 'en',
       overflowHidden: false,
       mainLinkStyle: 2,
